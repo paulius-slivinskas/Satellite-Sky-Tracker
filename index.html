@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Satellite Sky Tracker</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/mona-sans@5.1.1/index.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <div class="sidebar-stack">
+        <aside id="sidebar-main" class="sidebar sidebar-main">
+          <div class="sidebar-scroll">
+          <h1>Satellite Sky Tracker</h1>
+          <p class="creator-credit">By LY8KH</p>
+          <p class="subtitle">Follow live satellites, forecast passes, and simulate future orbits.</p>
+
+          <div class="tabs" role="tablist" aria-label="Sidebar sections">
+            <button class="tab-btn active" data-tab="filters" role="tab" aria-selected="true">Filters</button>
+            <button class="tab-btn" data-tab="time" role="tab" aria-selected="false">Time</button>
+            <button class="tab-btn" data-tab="passes" role="tab" aria-selected="false">Passes</button>
+          </div>
+
+          <section class="tab-panel active" data-panel="filters">
+            <h2>Filters</h2>
+            <label for="sat-search-input">Smart Search</label>
+            <input id="sat-search-input" type="text" placeholder="Type satellite name or NORAD ID" autocomplete="off" />
+            <div id="sat-search-suggestions" class="sat-search-suggestions"></div>
+            <div id="filters" class="filters"></div>
+            <p id="sat-count" class="muted">Loading satellites...</p>
+          </section>
+
+          <section class="tab-panel" data-panel="time">
+            <h2>Time Control</h2>
+            <button id="play-toggle" class="btn">Pause</button>
+            <label for="speed-select">Speed</label>
+            <select id="speed-select">
+              <option value="1" selected>1x</option>
+              <option value="10">10x</option>
+              <option value="60">60x</option>
+              <option value="300">300x</option>
+              <option value="900">900x</option>
+            </select>
+            <label for="timeline">Hours from now</label>
+            <input id="timeline" type="range" min="-24" max="72" value="0" step="0.1" />
+            <p id="time-label" class="muted"></p>
+          </section>
+
+          <section class="tab-panel" data-panel="passes">
+            <h2>Passes Over</h2>
+
+            <label for="sat-combo-input">Satellite</label>
+            <input
+              id="sat-combo-input"
+              type="text"
+              placeholder="Select or type satellite name / NORAD ID"
+              autocomplete="off"
+            />
+            <div id="sat-combo-suggest-box" class="inline-suggest-box"></div>
+
+            <button id="compute-passes" class="btn">Compute Next Passes</button>
+            <ul id="passes-list" class="passes-list"></ul>
+          </section>
+          </div>
+        </aside>
+
+        <aside id="sidebar-location" class="sidebar sidebar-location">
+          <div class="sidebar-scroll">
+            <details class="location-filter location-filter-bottom">
+              <summary>
+                <span class="location-summary-main">
+                  <span class="location-summary-pin" aria-hidden="true"></span>
+                  <span id="location-summary-value" class="location-summary-value">Not set</span>
+                </span>
+                <span id="location-summary-action" class="location-summary-action">Change</span>
+              </summary>
+              <div class="location-filter-content">
+                <label for="location-query">Location</label>
+                <input
+                  id="location-query"
+                  type="text"
+                  placeholder="Type city or country"
+                  autocomplete="off"
+                />
+                <div id="location-suggest-box" class="inline-suggest-box"></div>
+
+                <label for="observer-lat">Latitude</label>
+                <input id="observer-lat" type="number" step="0.0001" placeholder="e.g. 40.7128" />
+
+                <label for="observer-lon">Longitude</label>
+                <input id="observer-lon" type="number" step="0.0001" placeholder="e.g. -74.0060" />
+
+                <button id="search-location" class="btn">Find Location</button>
+
+                <div id="location-results-wrap" hidden>
+                  <label for="location-results">Search Results</label>
+                  <select id="location-results">
+                    <option value="">No results yet</option>
+                  </select>
+                  <p class="nearby-hint">Nearby results within 10 km radius</p>
+                </div>
+
+                <div class="location-altitude-block">
+                  <label for="observer-alt">Altitude (m)</label>
+                  <input id="observer-alt" type="number" step="1" placeholder="Enter altitude above sea level" />
+                  <p class="field-helper">Adjust altitude if your actual position at this point is above ground level.</p>
+                </div>
+              </div>
+            </details>
+          </div>
+        </aside>
+      </div>
+
+      <main class="map-wrap">
+        <div id="map"></div>
+        <div id="status" class="status"></div>
+        <div class="right-stack">
+          <aside id="sat-info" class="sat-info-panel hidden"></aside>
+          <div id="coffee-banner" class="coffee-banner hidden">
+            <span>Already loving this tracker</span>
+            <button id="coffee-banner-btn" type="button" class="coffee-banner-btn">Buy me a coffe</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="https://unpkg.com/satellite.js@5.0.0/dist/satellite.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
