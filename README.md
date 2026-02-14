@@ -82,5 +82,5 @@ Example response:
 ## Notes
 - Satellite data is loaded from CelesTrak TLE feeds at runtime.
 - Radio info is normalized through backend `/api/sat/:norad/radio` (SatNOGS + optional AMSAT mapping).
-- Additional CSV radio rows can be loaded via `AMSAT_FREQ_CSV_PATH` (defaults include `/Users/pauliusslivinskas/amsat-all-frequencies.csv`).
+- Additional CSV radio rows can be loaded via `AMSAT_FREQ_CSV_PATH`.
 - Starlink and active groups are capped for browser performance.
