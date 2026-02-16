@@ -113,5 +113,7 @@ Example response:
   - Smartphone sidebar now uses full-height content flow for easier scrolling.
   - Smartphone satellite info changed to bottom-sheet style (opens from bottom, ~50% height).
   - Map zoom controls now shift upward when the mobile bottom sheet is open.
+  - When sidebar is opened on mobile/tablet, map zoom controls are hidden.
+  - Opening sidebar while bottom sheet is open now auto-closes the sheet to avoid overlap conflicts.
 - Notification/marketing cleanup:
   - Removed “Already loving this tracker” toast and coffee banner/action entirely.
