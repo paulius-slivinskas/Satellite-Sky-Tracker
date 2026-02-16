@@ -26,6 +26,7 @@
             <button class="tab-btn active" data-tab="filters" role="tab" aria-selected="true">Filters</button>
             <button class="tab-btn" data-tab="time" role="tab" aria-selected="false">Time</button>
             <button class="tab-btn" data-tab="passes" role="tab" aria-selected="false">Passes</button>
+            <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
           </div>
 
           <section class="tab-panel active" data-panel="filters">
@@ -34,6 +35,46 @@
             <input id="sat-search-input" type="text" placeholder="Type satellite name or NORAD ID" autocomplete="off" />
             <div id="sat-search-suggestions" class="sat-search-suggestions"></div>
             <div id="filters" class="filters"></div>
+            <div class="filter-item">
+              <span class="filter-label">
+                <span id="max-altitude-text" class="filter-name">Set max altitude</span>
+                <span id="max-altitude-input-wrap" class="input-suffix-wrap" hidden>
+                  <input id="max-altitude-input" type="number" min="1" step="1" placeholder="Set max altitude" />
+                  <span class="input-suffix">km</span>
+                </span>
+              </span>
+              <label class="filter-toggle">
+                <input id="max-altitude-toggle" class="filter-toggle-input" type="checkbox" />
+                <span class="filter-toggle-slider"></span>
+              </label>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">
+                <span class="filter-name">Show LOS Footprint</span>
+              </span>
+              <label class="filter-toggle">
+                <input id="all-los-toggle" class="filter-toggle-input" type="checkbox" />
+                <span class="filter-toggle-slider"></span>
+              </label>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">
+                <span class="filter-name">Low only visible</span>
+              </span>
+              <label class="filter-toggle">
+                <input id="los-only-toggle" class="filter-toggle-input" type="checkbox" />
+                <span class="filter-toggle-slider"></span>
+              </label>
+            </div>
+            <div class="filter-item">
+              <span class="filter-label">
+                <span class="filter-name">Show Passes on Map</span>
+              </span>
+              <label class="filter-toggle">
+                <input id="show-passes-toggle" class="filter-toggle-input" type="checkbox" checked />
+                <span class="filter-toggle-slider"></span>
+              </label>
+            </div>
             <p id="sat-count" class="muted">Loading satellites...</p>
           </section>
 
@@ -48,13 +89,36 @@
               <option value="300">300x</option>
               <option value="900">900x</option>
             </select>
-            <label for="timeline">Hours from now</label>
-            <input id="timeline" type="range" min="-24" max="72" value="0" step="0.1" />
+            <div class="time-label-row">
+              <label for="timeline">Time</label>
+              <button id="reset-time" type="button" class="location-summary-action time-reset-btn">Reset</button>
+            </div>
+            <div id="timeline" class="time-jog" role="slider" aria-label="Time jog control" tabindex="0">
+              <div class="time-jog-track"></div>
+            </div>
             <p id="time-label" class="muted"></p>
           </section>
 
           <section class="tab-panel" data-panel="passes">
             <h2>Passes Over</h2>
+            <div class="filter-item">
+              <span class="filter-label">
+                <span class="filter-name">Show Passes on Map</span>
+              </span>
+              <label class="filter-toggle">
+                <input id="show-passes-toggle-passes" class="filter-toggle-input" type="checkbox" checked />
+                <span class="filter-toggle-slider"></span>
+              </label>
+            </div>
+
+            <label for="passes-days-select">Pass Range</label>
+            <select id="passes-days-select">
+              <option value="1" selected>1 day</option>
+              <option value="2">2 days</option>
+              <option value="3">3 days</option>
+              <option value="upcoming3">3 upcoming passes</option>
+              <option value="upcoming5">5 upcoming passes</option>
+            </select>
 
             <label for="sat-combo-input">Satellite</label>
             <input
@@ -65,9 +129,18 @@
             />
             <div id="sat-combo-suggest-box" class="inline-suggest-box"></div>
 
-            <button id="compute-passes" class="btn">Compute Next Passes</button>
             <ul id="passes-list" class="passes-list"></ul>
           </section>
+
+          <section class="tab-panel" data-panel="settings">
+            <h2>Settings</h2>
+            <label for="time-format-select">Time format</label>
+            <select id="time-format-select">
+              <option value="24h" selected>24-hour</option>
+              <option value="12h">12-hour</option>
+            </select>
+          </section>
+
           </div>
         </aside>
 
@@ -98,14 +171,7 @@
                 <input id="observer-lon" type="number" step="0.0001" placeholder="e.g. -74.0060" />
 
                 <button id="search-location" class="btn">Find Location</button>
-
-                <div id="location-results-wrap" hidden>
-                  <label for="location-results">Search Results</label>
-                  <select id="location-results">
-                    <option value="">No results yet</option>
-                  </select>
-                  <p class="nearby-hint">Nearby results within 10 km radius</p>
-                </div>
+                <button id="reset-location" type="button" class="location-summary-action">Reset location</button>
 
                 <div class="location-altitude-block">
                   <label for="observer-alt">Altitude (m)</label>

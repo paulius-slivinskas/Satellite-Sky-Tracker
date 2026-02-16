@@ -25,6 +25,12 @@ const FLEET_SATCOM_TARGETS = [
   { noradId: "20253", name: "FLTSATCOM 8 (USA 46)" }
 ];
 
+const TRACKED_FILTER_CONFIG = {
+  key: "tracked",
+  label: "Tracked",
+  color: "#94a3b8"
+};
+
 const CATEGORY_CONFIG = [
   {
     key: "iss",
@@ -80,9 +86,11 @@ const CATEGORY_CONFIG = [
     maxItems: 350
   }
 ];
+const FILTER_CONFIG = [TRACKED_FILTER_CONFIG, ...CATEGORY_CONFIG];
 const USE_MOCK_DATA = false;
 
 const INITIAL_MAP_CENTER = [15, 0];
+const LOCATION_VIEW_RANGE_KM = 2000;
 const ACCENT_GREEN = "#23c55e";
 const MIN_LAT = -85;
 const MAX_LAT = 85;
@@ -124,6 +132,19 @@ function applyVerticalFitConstraints(recenter = false) {
   }
 }
 
+function locationSelectionZoom(lat, lon) {
+  const latDelta = LOCATION_VIEW_RANGE_KM / 111.32;
+  const lonScale = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  const lonDelta = LOCATION_VIEW_RANGE_KM / (111.32 * lonScale);
+  const bounds = L.latLngBounds(
+    [lat - latDelta, lon - lonDelta],
+    [lat + latDelta, lon + lonDelta]
+  );
+  const zoomFromBounds = map.getBoundsZoom(bounds, false);
+  const minZoom = typeof map.getMinZoom === "function" ? map.getMinZoom() : 0;
+  return Math.max(minZoom, zoomFromBounds);
+}
+
 window.addEventListener("resize", () => {
   map.invalidateSize();
   applyVerticalFitConstraints();
@@ -134,6 +155,7 @@ const passLayer = L.layerGroup().addTo(map);
 const orbitLayer = L.layerGroup().addTo(map);
 const selectedSatLayer = L.layerGroup().addTo(map);
 const selectedLosLayer = L.layerGroup().addTo(map);
+const allLosLayer = L.layerGroup().addTo(map);
 const observerLayer = L.layerGroup().addTo(map);
 
 const statusEl = document.getElementById("status");
@@ -141,13 +163,24 @@ const filtersEl = document.getElementById("filters");
 const satCountEl = document.getElementById("sat-count");
 const satSearchInputEl = document.getElementById("sat-search-input");
 const satSearchSuggestionsEl = document.getElementById("sat-search-suggestions");
+const maxAltitudeToggleEl = document.getElementById("max-altitude-toggle");
+const maxAltitudeInputWrapEl = document.getElementById("max-altitude-input-wrap");
+const maxAltitudeInputEl = document.getElementById("max-altitude-input");
+const maxAltitudeTextEl = document.getElementById("max-altitude-text");
 const timelineEl = document.getElementById("timeline");
 const timeLabelEl = document.getElementById("time-label");
 const playToggleEl = document.getElementById("play-toggle");
+const resetTimeEl = document.getElementById("reset-time");
 const speedSelectEl = document.getElementById("speed-select");
 const satComboInputEl = document.getElementById("sat-combo-input");
 const satComboSuggestBoxEl = document.getElementById("sat-combo-suggest-box");
+const passesDaysSelectEl = document.getElementById("passes-days-select");
 const passesListEl = document.getElementById("passes-list");
+const timeFormatSelectEl = document.getElementById("time-format-select");
+const allLosToggleEl = document.getElementById("all-los-toggle");
+const losOnlyToggleEl = document.getElementById("los-only-toggle");
+const showPassesToggleEl = document.getElementById("show-passes-toggle");
+const showPassesTogglePassesEl = document.getElementById("show-passes-toggle-passes");
 const satInfoEl = document.getElementById("sat-info");
 const coffeeBannerEl = document.getElementById("coffee-banner");
 const coffeeBannerBtnEl = document.getElementById("coffee-banner-btn");
@@ -159,6 +192,7 @@ const filtersPanelEl = document.querySelector('.tab-panel[data-panel="filters"]'
 const locationQueryEl = document.getElementById("location-query");
 const locationSuggestBoxEl = document.getElementById("location-suggest-box");
 const searchLocationEl = document.getElementById("search-location");
+const resetLocationEl = document.getElementById("reset-location");
 const locationResultsWrapEl = document.getElementById("location-results-wrap");
 const locationResultsEl = document.getElementById("location-results");
 const spaceTrackIdentityEl = document.getElementById("spacetrack-identity");
@@ -181,8 +215,9 @@ const computePassesEl = document.getElementById("compute-passes");
 let satellites = [];
 let markers = new Map();
 let selectedCategories = new Set(
-  CATEGORY_CONFIG.filter((c) => c.key !== "starlink").map((c) => c.key)
+  FILTER_CONFIG.filter((c) => c.key !== "starlink").map((c) => c.key)
 );
+let trackedSatIds = new Set();
 let observerMarker = null;
 let simulatedTimeMs = Date.now();
 let speed = Number(speedSelectEl.value);
@@ -190,19 +225,26 @@ let playing = true;
 let lastTick = Date.now();
 let locationCandidates = [];
 let satComboSuggestCandidates = [];
+let satComboSuggestActiveIndex = -1;
 let locationSuggestCandidates = [];
 let locationSuggestActiveIndex = -1;
 let locationSuggestDebounce = null;
+let locationPreviewActive = false;
 let selectedOrbitSatId = null;
 let lastOrbitRenderMs = 0;
+let lastAllLosRenderMs = 0;
 let selectedSatId = null;
 let selectedSatOutline = null;
 let selectedLosCircles = null;
+let allLosCirclesBySatId = new Map();
 let satInfoRequestToken = 0;
 const satInfoCache = new Map();
 let activeProviderNotes = [];
 let selectedSearchSatId = null;
 let selectedPassSatId = "";
+let renderedPassTracks = [];
+let renderedPassItems = [];
+let passHoverResetTimer = null;
 let elevationRequestToken = 0;
 const elevationCache = new Map();
 const statusToastsByKey = new Map();
@@ -210,12 +252,31 @@ const statusQueue = [];
 let activeStatusToast = null;
 let amsatCsvRadioIndex = null;
 let amsatCsvRadioLoadPromise = null;
+let allLosEnabled = false;
+let losOnlyEnabled = false;
+let showPassesOnMap = true;
+let maxSatelliteAltitudeKm = 5000;
+let maxAltitudeEnabled = false;
+let timeFormat = "24h";
 
 const PROVIDER_KEYS = {
   spaceTrackIdentity: "satapp_space_track_identity",
   spaceTrackPassword: "satapp_space_track_password"
 };
+const WATCHED_SATS_KEY = "satapp_tracked_sat_ids";
+const ALL_LOS_ENABLED_KEY = "satapp_all_los_enabled";
+const LOS_ONLY_ENABLED_KEY = "satapp_los_only_enabled";
+const SHOW_PASSES_ON_MAP_KEY = "satapp_show_passes_on_map";
+const MAX_ALTITUDE_FILTER_KEY = "satapp_max_altitude_km";
+const MAX_ALTITUDE_ENABLED_KEY = "satapp_max_altitude_enabled";
+const PREFS_INITIALIZED_KEY = "satapp_prefs_initialized";
+const OBSERVER_LOCATION_KEY = "satapp_observer_location";
+const SAT_SNAPSHOT_KEY = "satapp_satellite_snapshot_v1";
+const CATEGORY_FILTERS_KEY = "satapp_category_filters_enabled";
+const TIME_FORMAT_KEY = "satapp_time_format";
 const WORLD_COPY_SHIFTS = [-360, 0, 360];
+const TIMELINE_JOG_STEP_MS = 600;
+const TIMELINE_JOG_PX_PER_STEP = 8;
 
 function setStatus(message, options = {}) {
   if (!statusEl || !message) {
@@ -423,6 +484,300 @@ function setActiveTab(tabName) {
   });
 }
 
+function readTrackedSatIds() {
+  try {
+    const raw = localStorage.getItem(WATCHED_SATS_KEY);
+    if (!raw) {
+      return new Set();
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return new Set();
+    }
+    return new Set(parsed.map((v) => String(v)));
+  } catch (error) {
+    return new Set();
+  }
+}
+
+function writeTrackedSatIds() {
+  try {
+    localStorage.setItem(WATCHED_SATS_KEY, JSON.stringify(Array.from(trackedSatIds)));
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function isTrackedSatellite(satId) {
+  return trackedSatIds.has(String(satId));
+}
+
+function toggleTrackedSatellite(satId) {
+  const key = String(satId);
+  if (!key) {
+    return false;
+  }
+  if (trackedSatIds.has(key)) {
+    trackedSatIds.delete(key);
+    writeTrackedSatIds();
+    return false;
+  }
+  trackedSatIds.add(key);
+  writeTrackedSatIds();
+  return true;
+}
+
+function readAllLosEnabled() {
+  try {
+    return localStorage.getItem(ALL_LOS_ENABLED_KEY) === "1";
+  } catch (error) {
+    return false;
+  }
+}
+
+function writeAllLosEnabled(enabled) {
+  try {
+    localStorage.setItem(ALL_LOS_ENABLED_KEY, enabled ? "1" : "0");
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function readLosOnlyEnabled() {
+  try {
+    return localStorage.getItem(LOS_ONLY_ENABLED_KEY) === "1";
+  } catch (error) {
+    return false;
+  }
+}
+
+function writeLosOnlyEnabled(enabled) {
+  try {
+    localStorage.setItem(LOS_ONLY_ENABLED_KEY, enabled ? "1" : "0");
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function readShowPassesOnMap() {
+  try {
+    const raw = localStorage.getItem(SHOW_PASSES_ON_MAP_KEY);
+    if (raw === null) {
+      return true;
+    }
+    return raw === "1";
+  } catch (error) {
+    return true;
+  }
+}
+
+function writeShowPassesOnMap(enabled) {
+  try {
+    localStorage.setItem(SHOW_PASSES_ON_MAP_KEY, enabled ? "1" : "0");
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function syncShowPassesToggles() {
+  if (showPassesToggleEl) {
+    showPassesToggleEl.checked = showPassesOnMap;
+  }
+  if (showPassesTogglePassesEl) {
+    showPassesTogglePassesEl.checked = showPassesOnMap;
+  }
+}
+
+function readTimeFormat() {
+  try {
+    const raw = localStorage.getItem(TIME_FORMAT_KEY);
+    return raw === "12h" ? "12h" : "24h";
+  } catch (error) {
+    return "24h";
+  }
+}
+
+function writeTimeFormat(value) {
+  try {
+    localStorage.setItem(TIME_FORMAT_KEY, value === "12h" ? "12h" : "24h");
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function syncTimeFormatControl() {
+  if (!timeFormatSelectEl) {
+    return;
+  }
+  timeFormatSelectEl.value = timeFormat === "12h" ? "12h" : "24h";
+}
+
+function readMaxAltitudeEnabled() {
+  try {
+    return localStorage.getItem(MAX_ALTITUDE_ENABLED_KEY) === "1";
+  } catch (error) {
+    return false;
+  }
+}
+
+function writeMaxAltitudeEnabled(enabled) {
+  try {
+    localStorage.setItem(MAX_ALTITUDE_ENABLED_KEY, enabled ? "1" : "0");
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function readPrefsInitialized() {
+  try {
+    return localStorage.getItem(PREFS_INITIALIZED_KEY) === "1";
+  } catch (error) {
+    return false;
+  }
+}
+
+function writePrefsInitialized() {
+  try {
+    localStorage.setItem(PREFS_INITIALIZED_KEY, "1");
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function readStoredObserverLocation() {
+  try {
+    const raw = localStorage.getItem(OBSERVER_LOCATION_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    const lat = Number(parsed?.lat);
+    const lon = Number(parsed?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return null;
+    }
+    const alt = Number(parsed?.alt);
+    return {
+      lat,
+      lon,
+      alt: Number.isFinite(alt) ? Math.round(alt) : null,
+      name: typeof parsed?.name === "string" ? parsed.name : ""
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeStoredObserverLocation() {
+  const coords = observerCoords();
+  if (!coords) {
+    try {
+      localStorage.removeItem(OBSERVER_LOCATION_KEY);
+    } catch (error) {
+      // Ignore storage errors.
+    }
+    return;
+  }
+  const payload = {
+    lat: coords.lat,
+    lon: coords.lon,
+    alt: Number.isFinite(Number(observerAltEl?.value)) ? Number(observerAltEl.value) : null,
+    name: String(locationQueryEl?.value || "").trim()
+  };
+  try {
+    localStorage.setItem(OBSERVER_LOCATION_KEY, JSON.stringify(payload));
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function defaultSelectedCategories() {
+  return new Set(FILTER_CONFIG.filter((c) => c.key !== "starlink").map((c) => c.key));
+}
+
+function readSelectedCategories() {
+  try {
+    const raw = localStorage.getItem(CATEGORY_FILTERS_KEY);
+    if (!raw) {
+      return defaultSelectedCategories();
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return defaultSelectedCategories();
+    }
+    const allowed = new Set(FILTER_CONFIG.map((c) => c.key));
+    const selected = parsed
+      .map((key) => String(key))
+      .filter((key) => allowed.has(key));
+    return new Set(selected);
+  } catch (error) {
+    return defaultSelectedCategories();
+  }
+}
+
+function writeSelectedCategories() {
+  try {
+    localStorage.setItem(CATEGORY_FILTERS_KEY, JSON.stringify(Array.from(selectedCategories)));
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function readMaxSatelliteAltitudeKm() {
+  try {
+    const raw = localStorage.getItem(MAX_ALTITUDE_FILTER_KEY);
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.round(parsed);
+    }
+  } catch (error) {
+    // Ignore storage errors.
+  }
+  return 5000;
+}
+
+function writeMaxSatelliteAltitudeKm(value) {
+  try {
+    localStorage.setItem(MAX_ALTITUDE_FILTER_KEY, String(value));
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function syncMaxAltitudeControl() {
+  if (!maxAltitudeToggleEl || !maxAltitudeInputEl || !maxAltitudeTextEl || !maxAltitudeInputWrapEl) {
+    return;
+  }
+  maxAltitudeToggleEl.checked = maxAltitudeEnabled;
+  if (maxAltitudeEnabled) {
+    maxAltitudeInputWrapEl.hidden = false;
+    maxAltitudeInputWrapEl.style.display = "inline-flex";
+    maxAltitudeInputEl.hidden = false;
+    maxAltitudeInputEl.disabled = false;
+    maxAltitudeTextEl.hidden = true;
+    maxAltitudeInputEl.value = String(maxSatelliteAltitudeKm);
+  } else {
+    maxAltitudeInputWrapEl.hidden = true;
+    maxAltitudeInputWrapEl.style.display = "none";
+    maxAltitudeInputEl.hidden = true;
+    maxAltitudeInputEl.disabled = true;
+    maxAltitudeInputEl.value = "";
+    maxAltitudeTextEl.hidden = false;
+    maxAltitudeTextEl.textContent = "Set max altitude";
+  }
+}
+
+function applyMaxAltitudeInput() {
+  if (!maxAltitudeInputEl) {
+    return;
+  }
+  const parsed = Number(maxAltitudeInputEl.value);
+  const safeValue = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 5000;
+  maxSatelliteAltitudeKm = safeValue;
+  maxAltitudeInputEl.value = String(safeValue);
+  writeMaxSatelliteAltitudeKm(safeValue);
+}
+
 function setFiltersLoadingState(isLoading, message = "Loading satellites") {
   if (!satCountEl) {
     return;
@@ -578,11 +933,15 @@ function satDisplayLabel(sat) {
 
 function resolvePassSatelliteIdFromInput() {
   const query = String(satComboInputEl?.value || "").trim();
+  const pinnedSatId = String(satComboInputEl?.dataset?.selectedSatId || "");
   if (!query) {
     return "";
   }
 
   const active = visibleSatellites();
+  if (pinnedSatId && active.some((sat) => sat.id === pinnedSatId)) {
+    return pinnedSatId;
+  }
   const queryUpper = query.toUpperCase();
 
   const exactByLabel = active.find((sat) => satDisplayLabel(sat) === query);
@@ -615,15 +974,22 @@ function setPassSatelliteInputById(satId) {
   }
   const sat = satellites.find((item) => item.id === satId);
   satComboInputEl.value = sat ? satDisplayLabel(sat) : "";
+  if (satId) {
+    satComboInputEl.dataset.selectedSatId = satId;
+  } else {
+    delete satComboInputEl.dataset.selectedSatId;
+  }
 }
 
 function clearSatComboSuggestions() {
   satComboSuggestCandidates = [];
+  satComboSuggestActiveIndex = -1;
   if (!satComboSuggestBoxEl) {
     return;
   }
   satComboSuggestBoxEl.innerHTML = "";
   satComboSuggestBoxEl.classList.remove("show");
+  renderPasses();
 }
 
 function findPassSatelliteMatches(query, limit = 16) {
@@ -649,6 +1015,7 @@ function findPassSatelliteMatches(query, limit = 16) {
 
 function renderSatComboSuggestions(items) {
   satComboSuggestCandidates = items;
+  satComboSuggestActiveIndex = -1;
   if (!satComboSuggestBoxEl) {
     return;
   }
@@ -663,10 +1030,14 @@ function renderSatComboSuggestions(items) {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "inline-suggest-item";
-    if (idx === 0) {
-      row.classList.add("active");
-    }
-    row.innerHTML = `<span>${escapeHtml(sat.name)}</span><span class="inline-suggest-meta">#${escapeHtml(sat.noradId || "N/A")}</span>`;
+    row.dataset.index = String(idx);
+    row.innerHTML = `<span class="location-suggest-primary">${escapeHtml(sat.name)}</span><span class="inline-suggest-meta">#${escapeHtml(sat.noradId || "N/A")}</span>`;
+    row.addEventListener("mouseenter", () => {
+      setSatComboSuggestActiveIndex(idx);
+    });
+    row.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+    });
     row.addEventListener("click", () => {
       setPassSatelliteInputById(sat.id);
       clearSatComboSuggestions();
@@ -675,6 +1046,54 @@ function renderSatComboSuggestions(items) {
     satComboSuggestBoxEl.appendChild(row);
   });
   satComboSuggestBoxEl.classList.add("show");
+  setSatComboSuggestActiveIndex(0);
+}
+
+function setSatComboSuggestActiveIndex(index, preview = true) {
+  if (!satComboSuggestBoxEl || !satComboSuggestCandidates.length) {
+    satComboSuggestActiveIndex = -1;
+    return;
+  }
+  const count = satComboSuggestCandidates.length;
+  const normalized = ((Number(index) % count) + count) % count;
+  satComboSuggestActiveIndex = normalized;
+
+  const rows = satComboSuggestBoxEl.querySelectorAll(".inline-suggest-item");
+  rows.forEach((row, idx) => {
+    const active = idx === normalized;
+    row.classList.toggle("active", active);
+    if (active) {
+      row.scrollIntoView({ block: "nearest" });
+    }
+  });
+
+  if (preview) {
+    const sat = satComboSuggestCandidates[normalized];
+    if (sat) {
+      renderPasses(sat.id, { preview: true });
+    }
+  }
+}
+
+function moveSatComboSuggestActive(delta) {
+  if (!satComboSuggestCandidates.length) {
+    return;
+  }
+  if (satComboSuggestActiveIndex < 0) {
+    setSatComboSuggestActiveIndex(delta >= 0 ? 0 : satComboSuggestCandidates.length - 1, true);
+    return;
+  }
+  setSatComboSuggestActiveIndex(satComboSuggestActiveIndex + delta, true);
+}
+
+function getActiveSatComboSuggestion() {
+  if (!satComboSuggestCandidates.length) {
+    return null;
+  }
+  if (satComboSuggestActiveIndex >= 0 && satComboSuggestActiveIndex < satComboSuggestCandidates.length) {
+    return satComboSuggestCandidates[satComboSuggestActiveIndex];
+  }
+  return satComboSuggestCandidates[0] || null;
 }
 
 async function activateSatelliteSelection(sat, centerMap = false) {
@@ -1220,9 +1639,24 @@ function renderSatInfo(sat, metadata) {
   const descriptionHtml = descriptionText
     ? `<p class="sat-description">${escapeHtml(descriptionText)}</p>`
     : "";
+  const isTracked = isTrackedSatellite(sat.id);
 
   satInfoEl.innerHTML = `
-    <h3>Satellite Info</h3>
+    <div class="sat-info-head">
+      <h3>Satellite Info</h3>
+      <button
+        type="button"
+        class="sat-watch-btn ${isTracked ? "active" : ""}"
+        id="sat-watch-toggle"
+        data-sat-id="${escapeHtml(sat.id)}"
+        aria-pressed="${isTracked ? "true" : "false"}"
+        title="${isTracked ? "Remove from Tracked" : "Add to Tracked"}"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 5C6.5 5 2.1 8.3 1 12c1.1 3.7 5.5 7 11 7s9.9-3.3 11-7c-1.1-3.7-5.5-7-11-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/>
+        </svg>
+      </button>
+    </div>
     <p class="sat-name">${escapeHtml(sat.name)}</p>
     <div class="sat-kv-grid">${rowsHtml}</div>
     <h4>Amateur Radio</h4>
@@ -1327,11 +1761,21 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 9000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchTextWithRetry(url, attempts = 3) {
   let lastError = null;
   for (let i = 0; i < attempts; i += 1) {
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url, {}, 9000);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -1350,7 +1794,7 @@ async function fetchJsonWithRetry(url, attempts = 2) {
   let lastError = null;
   for (let i = 0; i < attempts; i += 1) {
     try {
-      const response = await fetch(url);
+      const response = await fetchWithTimeout(url, {}, 9000);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -1488,23 +1932,167 @@ function writeCachedTle(configKey, text) {
   }
 }
 
-async function loadSatellites() {
-  setFiltersLoadingState(true);
+function buildSatellitesFromTleCache() {
+  const byKey = new Map();
+  for (const config of CATEGORY_CONFIG) {
+    const cached = readCachedTle(config.key);
+    if (!cached) {
+      continue;
+    }
+    let records = parseTLE(cached);
+    if (!records.length) {
+      continue;
+    }
+    if (config.include) {
+      records = records.filter((r) => config.include(r.name));
+    }
+    if (config.key === "iss") {
+      records = keepCanonicalIssRecord(records).map((rec) => ({ ...rec, name: "ISS" }));
+    }
+    if (config.maxItems && records.length > config.maxItems) {
+      records = records.slice(0, config.maxItems);
+    }
+
+    for (const rec of records) {
+      const noradId = rec.line1.slice(2, 7).trim();
+      const id = `NORAD-${noradId}`;
+      if (byKey.has(id)) {
+        continue;
+      }
+      byKey.set(id, {
+        id,
+        category: config.key,
+        color: config.color,
+        name: noradId === "25544" ? "ISS" : rec.name,
+        line1: rec.line1,
+        line2: rec.line2,
+        noradId,
+        satrec: satellite.twoline2satrec(rec.line1, rec.line2)
+      });
+    }
+  }
+  return Array.from(byKey.values());
+}
+
+function writeSatelliteSnapshot(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return;
+  }
+  try {
+    const payload = items
+      .map((sat) => {
+        if (!sat || !sat.id || !sat.category || !sat.name || !sat.noradId) {
+          return null;
+        }
+        if (typeof sat.line1 === "string" && typeof sat.line2 === "string") {
+          return {
+            id: sat.id,
+            category: sat.category,
+            color: sat.color,
+            name: sat.name,
+            line1: sat.line1,
+            line2: sat.line2,
+            noradId: sat.noradId
+          };
+        }
+        if (sat.mockOrbit) {
+          return {
+            id: sat.id,
+            category: sat.category,
+            color: sat.color,
+            name: sat.name,
+            noradId: sat.noradId,
+            mockOrbit: sat.mockOrbit
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    if (!payload.length) {
+      return;
+    }
+
+    localStorage.setItem(
+      SAT_SNAPSHOT_KEY,
+      JSON.stringify({
+        savedAt: Date.now(),
+        satellites: payload
+      })
+    );
+  } catch (error) {
+    // Ignore storage limits / private mode restrictions.
+  }
+}
+
+function readSatelliteSnapshot() {
+  try {
+    const raw = localStorage.getItem(SAT_SNAPSHOT_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    const rows = Array.isArray(parsed?.satellites) ? parsed.satellites : [];
+    const out = [];
+    rows.forEach((row) => {
+      if (!row || !row.id || !row.category || !row.name || !row.noradId) {
+        return;
+      }
+      if (row.line1 && row.line2) {
+        out.push({
+          id: row.id,
+          category: row.category,
+          color: row.color,
+          name: row.name,
+          line1: row.line1,
+          line2: row.line2,
+          noradId: row.noradId,
+          satrec: satellite.twoline2satrec(row.line1, row.line2)
+        });
+        return;
+      }
+      if (row.mockOrbit) {
+        out.push({
+          id: row.id,
+          category: row.category,
+          color: row.color,
+          name: row.name,
+          noradId: row.noradId,
+          mockOrbit: row.mockOrbit
+        });
+      }
+    });
+    return out;
+  } catch (error) {
+    return [];
+  }
+}
+
+async function loadSatellites(options = {}) {
+  const { showLoading = true } = options;
+  if (showLoading) {
+    setFiltersLoadingState(true);
+  }
   if (USE_MOCK_DATA) {
     clearStatusToast("sat-load");
     satellites = buildMockSatellites();
+    writeSatelliteSnapshot(satellites);
     buildFilterControls();
     refreshSatelliteSelect();
-    setFiltersLoadingState(false);
+    if (showLoading) {
+      setFiltersLoadingState(false);
+    }
     setStatus(`Loaded ${satellites.length} mock satellites.`);
     return;
   }
 
-  setStatus("Loading TLE data from CelesTrak...", {
-    loading: true,
-    persist: true,
-    key: "sat-load"
-  });
+  if (showLoading) {
+    setStatus("Loading TLE data from CelesTrak...", {
+      loading: true,
+      persist: true,
+      key: "sat-load"
+    });
+  }
   activeProviderNotes = [];
 
   const byKey = new Map();
@@ -1594,24 +2182,37 @@ async function loadSatellites() {
     }
   }
 
-  satellites = Array.from(byKey.values());
-  if (selectedSearchSatId && !satellites.some((sat) => sat.id === selectedSearchSatId)) {
+  const loadedSatellites = Array.from(byKey.values());
+  if (selectedSearchSatId && !loadedSatellites.some((sat) => sat.id === selectedSearchSatId)) {
     selectedSearchSatId = null;
     if (satSearchInputEl) {
       satSearchInputEl.value = "";
     }
     clearSatelliteSearchSuggestions();
   }
-  if (!satellites.length) {
-    setFiltersLoadingState(false);
+  if (!loadedSatellites.length) {
+    if (satellites.length) {
+      if (showLoading) {
+        setFiltersLoadingState(false);
+      }
+      setStatus("Live satellite update failed. Showing last cached satellites.");
+      return;
+    }
+    if (showLoading) {
+      setFiltersLoadingState(false);
+    }
     setStatus("No satellite data loaded. Check network access and reload.");
     return;
   }
 
+  satellites = loadedSatellites;
+  writeSatelliteSnapshot(satellites);
   clearStatusToast("sat-load");
   buildFilterControls();
   refreshSatelliteSelect();
-  setFiltersLoadingState(false);
+  if (showLoading) {
+    setFiltersLoadingState(false);
+  }
   const providerSummary = activeProviderNotes.length ? ` (${activeProviderNotes.join(", ")})` : "";
   setStatus(`Loaded ${satellites.length} satellites${providerSummary}.`);
 }
@@ -1622,6 +2223,7 @@ function buildFilterControls() {
   satellites.forEach((sat) => {
     countsByCategory.set(sat.category, (countsByCategory.get(sat.category) || 0) + 1);
   });
+  const trackedCount = satellites.filter((sat) => isTrackedSatellite(sat.id)).length;
 
   const allRow = document.createElement("div");
   allRow.className = "filter-item";
@@ -1633,33 +2235,28 @@ function buildFilterControls() {
   allText.textContent = "All Filters";
   allLabel.appendChild(allText);
 
-  const allToggle = document.createElement("label");
-  allToggle.className = "filter-toggle";
-  const allInput = document.createElement("input");
-  allInput.type = "checkbox";
-  allInput.className = "filter-toggle-input";
-  allInput.id = "toggle-all-filters";
-  const allKnob = document.createElement("span");
-  allKnob.className = "filter-toggle-slider";
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "location-summary-action filter-clear-btn";
+  clearBtn.id = "clear-all-filters";
+  clearBtn.textContent = "Clear";
 
-  allInput.addEventListener("change", () => {
-    if (allInput.checked) {
-      selectedCategories = new Set(CATEGORY_CONFIG.map((cfg) => cfg.key));
-    } else {
-      selectedCategories = new Set();
+  clearBtn.addEventListener("click", () => {
+    if (!selectedCategories.size) {
+      return;
     }
+    selectedCategories = new Set();
+    writeSelectedCategories();
     refreshSatelliteSelect();
     redrawMarkers(true);
     buildFilterControls();
   });
 
-  allToggle.appendChild(allInput);
-  allToggle.appendChild(allKnob);
   allRow.appendChild(allLabel);
-  allRow.appendChild(allToggle);
+  allRow.appendChild(clearBtn);
   filtersEl.appendChild(allRow);
 
-  for (const config of CATEGORY_CONFIG) {
+  for (const config of FILTER_CONFIG) {
     const row = document.createElement("div");
     row.className = "filter-item";
     const labelWrap = document.createElement("span");
@@ -1674,6 +2271,7 @@ function buildFilterControls() {
       } else {
         selectedCategories.delete(config.key);
       }
+      writeSelectedCategories();
       refreshSatelliteSelect();
       redrawMarkers(true);
       syncAllFiltersToggleState();
@@ -1689,7 +2287,7 @@ function buildFilterControls() {
 
     const count = document.createElement("span");
     count.className = "filter-count";
-    count.textContent = `(${countsByCategory.get(config.key) || 0})`;
+    count.textContent = `(${config.key === TRACKED_FILTER_CONFIG.key ? trackedCount : countsByCategory.get(config.key) || 0})`;
 
     labelWrap.appendChild(bubble);
     labelWrap.appendChild(text);
@@ -1709,17 +2307,15 @@ function buildFilterControls() {
   }
 
   syncAllFiltersToggleState();
+  writeSelectedCategories();
 }
 
 function syncAllFiltersToggleState() {
-  const allInput = document.getElementById("toggle-all-filters");
-  if (!allInput) {
+  const clearBtn = document.getElementById("clear-all-filters");
+  if (!clearBtn) {
     return;
   }
-  const total = CATEGORY_CONFIG.length;
-  const selected = selectedCategories.size;
-  allInput.checked = selected === total;
-  allInput.indeterminate = selected > 0 && selected < total;
+  clearBtn.disabled = selectedCategories.size === 0;
 }
 
 function currentSimTime() {
@@ -1824,10 +2420,13 @@ function wrappedLatLng(base, lonShiftDeg) {
 }
 
 function addWrappedPolyline(layer, points, style) {
+  const lines = [];
   WORLD_COPY_SHIFTS.forEach((shift) => {
     const shifted = points.map((pt) => wrappedLatLng(pt, shift));
-    L.polyline(shifted, { ...style, noClip: true }).addTo(layer);
+    const line = L.polyline(shifted, { ...style, noClip: true }).addTo(layer);
+    lines.push(line);
   });
+  return lines;
 }
 
 function setMarkerSetLatLng(markerSet, lat, lon) {
@@ -1872,8 +2471,8 @@ function renderSelectedOrbitPath(force = false) {
   splitTrackOnDateLine(pastPoints).forEach((segment) => {
     addWrappedPolyline(orbitLayer, segment, {
       color: ACCENT_GREEN,
-      weight: 2,
-      opacity: 0.25
+      weight: 1,
+      opacity: 0.15
     });
   });
   splitTrackOnDateLine(futurePoints).forEach((segment) => {
@@ -1986,17 +2585,131 @@ function renderSelectedLineOfSightCircle() {
   }
 }
 
+function renderAllLosCircles(force = false) {
+  if (!allLosEnabled) {
+    allLosLayer.clearLayers();
+    allLosCirclesBySatId = new Map();
+    lastAllLosRenderMs = 0;
+    return;
+  }
+
+  const observer = observerGd();
+  if (!observer) {
+    allLosLayer.clearLayers();
+    allLosCirclesBySatId = new Map();
+    return;
+  }
+
+  const simNow = currentSimTime();
+  const active = visibleSatellites();
+  const stillUsed = new Set();
+
+  active.forEach((sat) => {
+    const look = getLookAngles(sat, simNow, observer);
+    if (!look || !Number.isFinite(look.elevation)) {
+      return;
+    }
+    const elevationDeg = satellite.radiansToDegrees(look.elevation);
+    if (elevationDeg < 0) {
+      return;
+    }
+
+    const markerSet = markers.get(sat.id);
+    if (!markerSet || !markerSet.copies || !markerSet.copies[1]) {
+      return;
+    }
+
+    const pos = satPositionAt(sat, simNow);
+    const radiusMeters = lineOfSightRadiusMeters(pos?.altKm);
+    if (!radiusMeters || radiusMeters <= 0) {
+      return;
+    }
+
+    const baseLatLng = markerSet.copies[1].getLatLng();
+    const circleColor = markerSet.copies[1].options.fillColor || markerSet.copies[1].options.color || sat.color;
+    const isOtherSelectedLos = Boolean(selectedSatId && sat.id !== selectedSatId);
+    const circleOpacity = isOtherSelectedLos ? 0.15 : 0.45;
+    let circles = allLosCirclesBySatId.get(sat.id);
+    if (!circles || !Array.isArray(circles) || circles.length !== WORLD_COPY_SHIFTS.length) {
+      circles?.forEach((c) => allLosLayer.removeLayer(c));
+      circles = WORLD_COPY_SHIFTS.map((shift) => {
+        const circle = L.circle([baseLatLng.lat, baseLatLng.lng + shift], {
+          radius: radiusMeters,
+          color: circleColor,
+          weight: 1,
+          opacity: circleOpacity,
+          fill: false,
+          interactive: false,
+          noClip: true
+        }).addTo(allLosLayer);
+        return circle;
+      });
+      allLosCirclesBySatId.set(sat.id, circles);
+    } else {
+      circles.forEach((circle, idx) => {
+        const shift = WORLD_COPY_SHIFTS[idx] || 0;
+        circle.setLatLng([baseLatLng.lat, baseLatLng.lng + shift]);
+        circle.setRadius(radiusMeters);
+        circle.setStyle({
+          color: circleColor,
+          opacity: circleOpacity
+        });
+      });
+    }
+    stillUsed.add(sat.id);
+  });
+
+  for (const [satId, circles] of allLosCirclesBySatId.entries()) {
+    if (stillUsed.has(satId)) {
+      continue;
+    }
+    circles.forEach((circle) => allLosLayer.removeLayer(circle));
+    allLosCirclesBySatId.delete(satId);
+  }
+}
+
 function visibleSatellites() {
-  return satellites.filter((sat) => selectedCategories.has(sat.category));
+  const now = currentSimTime();
+  const observer = losOnlyEnabled ? observerGd() : null;
+  return satellites.filter((sat) => {
+    const isSearchFocused = Boolean(selectedSearchSatId && sat.id === selectedSearchSatId);
+    const categoryVisible =
+      selectedCategories.has(sat.category) ||
+      (selectedCategories.has(TRACKED_FILTER_CONFIG.key) && isTrackedSatellite(sat.id));
+    if (!categoryVisible && !isSearchFocused) {
+      return false;
+    }
+
+    const pos = satPositionAt(sat, now);
+    if (!pos || !Number.isFinite(pos.altKm)) {
+      return false;
+    }
+    if (maxAltitudeEnabled && pos.altKm > maxSatelliteAltitudeKm) {
+      return false;
+    }
+
+    if (losOnlyEnabled && observer) {
+      const look = getLookAngles(sat, now, observer);
+      if (!look || !Number.isFinite(look.elevation)) {
+        return false;
+      }
+      const elevationDeg = satellite.radiansToDegrees(look.elevation);
+      if (elevationDeg < 0) {
+        return false;
+      }
+    }
+    return true;
+  });
 }
 
 function redrawMarkers(forceRebuild = false) {
   const now = currentSimTime();
   const active = visibleSatellites();
+  const observerForLosDim = allLosEnabled && !losOnlyEnabled ? observerGd() : null;
 
   satCountEl.textContent = selectedSearchSatId
-    ? `${active.length} visible (focused satellite highlighted)`
-    : `${active.length} visible from selected categories`;
+    ? `${active.length} visible (focused satellite highlighted${maxAltitudeEnabled ? `, <= ${maxSatelliteAltitudeKm} km` : ""})`
+    : `${active.length} visible from selected categories${maxAltitudeEnabled ? ` (<= ${maxSatelliteAltitudeKm} km)` : ""}`;
 
   if (forceRebuild) {
     markerLayer.clearLayers();
@@ -2010,8 +2723,20 @@ function redrawMarkers(forceRebuild = false) {
     if (!pos) {
       continue;
     }
+
+    let outsideLos = false;
+    if (observerForLosDim) {
+      const look = getLookAngles(sat, now, observerForLosDim);
+      const elevationDeg =
+        look && Number.isFinite(look.elevation) ? satellite.radiansToDegrees(look.elevation) : -90;
+      outsideLos = elevationDeg < 0;
+    }
+
     const dimmedBySearchFocus = Boolean(selectedSearchSatId && sat.id !== selectedSearchSatId);
-    const satFillOpacity = dimmedBySearchFocus ? 0.225 : 0.9;
+    let satFillOpacity = dimmedBySearchFocus ? 0.225 : 0.9;
+    if (outsideLos) {
+      satFillOpacity = Math.min(satFillOpacity, 0.15);
+    }
     const satHitOpacity = dimmedBySearchFocus ? 0.25 : 0;
 
     let markerSet = markers.get(sat.id);
@@ -2089,6 +2814,7 @@ function redrawMarkers(forceRebuild = false) {
   renderSelectedSatelliteOutline();
   renderSelectedLineOfSightCircle();
   renderSelectedOrbitPath();
+  renderAllLosCircles(forceRebuild);
 }
 
 function refreshSatelliteSelect() {
@@ -2104,13 +2830,16 @@ function refreshSatelliteSelect() {
 }
 
 function formatDate(d) {
+  const use12h = timeFormat === "12h";
   return d.toLocaleString(undefined, {
     year: "numeric",
     month: "short",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit"
+    second: "2-digit",
+    hour12: use12h,
+    hourCycle: use12h ? "h12" : "h23"
   });
 }
 
@@ -2123,10 +2852,13 @@ function formatDateOnly(d) {
 }
 
 function formatTimeOnly(d) {
+  const use12h = timeFormat === "12h";
   return d.toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
-    second: "2-digit"
+    second: "2-digit",
+    hour12: use12h,
+    hourCycle: use12h ? "h12" : "h23"
   });
 }
 
@@ -2259,6 +2991,7 @@ async function updateObserverAltitudeFromCoords(coords, silent = true) {
     observerAltEl.value = String(Math.round(meters));
     updateLocationSummary();
     layoutSidebarSections();
+    writeStoredObserverLocation();
     redrawMarkers(true);
     renderPasses();
   } catch (error) {
@@ -2410,18 +3143,36 @@ async function autoSetLocationFromIp() {
   const merged = mergeUniqueLocations([resolved, ...nearby]);
   populateLocationResults(merged);
   setLocationResultsVisible(true);
-  locationResultsEl.value = "0";
   applyLocationCandidate(merged[0]);
   setGeoPermissionPopupVisible(false);
   setStatus(`Detected location: ${formatLocationLabel(merged[0])}.`);
 }
 
 function setLocationResultsVisible(visible) {
-  if (!locationResultsWrapEl) {
-    return;
+  if (locationResultsWrapEl) {
+    locationResultsWrapEl.hidden = true;
+    layoutSidebarSections();
   }
-  locationResultsWrapEl.hidden = !visible;
-  layoutSidebarSections();
+}
+
+function resetObserverLocation() {
+  if (locationQueryEl) {
+    locationQueryEl.value = "";
+  }
+  observerLatEl.value = "";
+  observerLonEl.value = "";
+  observerAltEl.value = "";
+  locationCandidates = [];
+  renderLocationSuggestions([]);
+  setLocationResultsVisible(false);
+  updateObserverMarker();
+  updateComputePassesState();
+  updateLocationSummary();
+  writeStoredObserverLocation();
+  passLayer.clearLayers();
+  renderPasses();
+  redrawMarkers(true);
+  setStatus("Observer location reset.");
 }
 
 function normalizeLocationItem(item) {
@@ -2517,6 +3268,7 @@ function renderLocationSuggestions(items) {
   }
   locationSuggestBoxEl.innerHTML = "";
   if (!items.length) {
+    locationPreviewActive = false;
     locationSuggestBoxEl.classList.remove("show");
     return;
   }
@@ -2537,7 +3289,11 @@ function renderLocationSuggestions(items) {
       meta.textContent = metaText;
       row.appendChild(meta);
     }
+    row.addEventListener("mouseenter", () => {
+      setLocationSuggestActiveIndex(idx);
+    });
     row.addEventListener("click", () => {
+      locationPreviewActive = false;
       applyLocationCandidate(item);
       renderLocationSuggestions([]);
     });
@@ -2564,6 +3320,12 @@ function setLocationSuggestActiveIndex(index) {
       row.scrollIntoView({ block: "nearest" });
     }
   });
+
+  const activeCandidate = locationSuggestCandidates[normalized];
+  if (activeCandidate) {
+    locationPreviewActive = true;
+    applyLocationCandidate(activeCandidate, { skipAltitudeFetch: true, skipPassRender: true });
+  }
 }
 
 function moveLocationSuggestActive(delta) {
@@ -2647,6 +3409,9 @@ out center 20;
 
 function populateLocationResults(items) {
   locationCandidates = items;
+  if (!locationResultsEl) {
+    return;
+  }
   locationResultsEl.innerHTML = "";
 
   if (!items.length) {
@@ -2665,7 +3430,8 @@ function populateLocationResults(items) {
   });
 }
 
-function applyLocationCandidate(item) {
+function applyLocationCandidate(item, options = {}) {
+  const { skipAltitudeFetch = false, skipPassRender = false } = options;
   const lat = Number(item.lat);
   const lon = Number(item.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
@@ -2679,10 +3445,15 @@ function applyLocationCandidate(item) {
   }
   updateObserverMarker();
   updateComputePassesState();
-  map.setView([lat, lon], 10);
-  updateObserverAltitudeFromCoords({ lat, lon }, false);
+  map.setView([lat, lon], locationSelectionZoom(lat, lon));
+  if (!skipAltitudeFetch) {
+    updateObserverAltitudeFromCoords({ lat, lon }, false);
+  }
   updateLocationSummary();
-  renderPasses();
+  if (!skipPassRender) {
+    renderPasses();
+  }
+  writeStoredObserverLocation();
 }
 
 async function searchObserverLocation() {
@@ -2745,7 +3516,6 @@ async function searchObserverLocation() {
       const merged = mergeUniqueLocations([item, ...nearby]);
       populateLocationResults(merged);
       setLocationResultsVisible(true);
-      locationResultsEl.value = "0";
       applyLocationCandidate(merged[0]);
       return;
     }
@@ -2798,7 +3568,6 @@ async function searchObserverLocation() {
     const merged = mergeUniqueLocations([primary, ...nearby, ...items.slice(1)]);
     populateLocationResults(merged);
     setLocationResultsVisible(true);
-    locationResultsEl.value = "0";
     applyLocationCandidate(merged[0]);
   } catch (error) {
     console.error("Location search failed:", error);
@@ -2809,8 +3578,32 @@ async function searchObserverLocation() {
 
 function updateTimeLabel() {
   const simTime = currentSimTime();
-  const hours = (simulatedTimeMs - Date.now()) / 3600000;
-  timeLabelEl.textContent = `Sim time: ${formatDate(simTime)} (${hours.toFixed(1)}h)`;
+  const deltaMs = simulatedTimeMs - Date.now();
+  const sign = deltaMs >= 0 ? "+" : "-";
+  const absMs = Math.abs(deltaMs);
+  const totalSeconds = Math.floor(absMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const offsetText = `${sign}${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
+  timeLabelEl.textContent = `Simulated time:\n${formatDate(simTime)} (${offsetText})`;
+}
+
+function currentSpeedMultiplier() {
+  const raw = Number(speedSelectEl?.value);
+  if (Number.isFinite(raw) && raw > 0) {
+    return raw;
+  }
+  return Number.isFinite(speed) && speed > 0 ? speed : 1;
+}
+
+function syncPlayButton() {
+  if (!playToggleEl) {
+    return;
+  }
+  playToggleEl.textContent = playing ? "Pause" : "Play";
+  playToggleEl.classList.toggle("btn-pause", playing);
+  playToggleEl.classList.toggle("btn-secondary", false);
 }
 
 function observerGd() {
@@ -2844,6 +3637,9 @@ function observerCoords() {
 }
 
 function updateComputePassesState() {
+  if (!computePassesEl) {
+    return;
+  }
   computePassesEl.disabled = !observerCoords();
 }
 
@@ -2882,7 +3678,7 @@ function getLookAngles(sat, date, observer) {
   return satellite.ecfToLookAngles(observer, ecf);
 }
 
-function computeNextPasses(sat, observer, startDate, hoursWindow = 24, minElevationDeg = 10, maxPasses = 1) {
+function computeNextPasses(sat, observer, startDate, hoursWindow = 24, minElevationDeg = 0, maxPasses = 1) {
   const passes = [];
   const stepMs = 30 * 1000;
   const end = startDate.getTime() + hoursWindow * 3600000;
@@ -2891,6 +3687,21 @@ function computeNextPasses(sat, observer, startDate, hoursWindow = 24, minElevat
   let passStart = null;
   let maxElevation = -90;
   let maxAt = null;
+  let lastElevDeg = null;
+  let lastDate = null;
+
+  const interpolateThresholdTime = (prevDate, prevElev, nextDate, nextElev, threshold) => {
+    if (!prevDate || !nextDate || !Number.isFinite(prevElev) || !Number.isFinite(nextElev)) {
+      return nextDate || prevDate || null;
+    }
+    const delta = nextElev - prevElev;
+    if (Math.abs(delta) < 1e-9) {
+      return nextDate;
+    }
+    const ratio = (threshold - prevElev) / delta;
+    const clamped = Math.max(0, Math.min(1, ratio));
+    return new Date(prevDate.getTime() + (nextDate.getTime() - prevDate.getTime()) * clamped);
+  };
 
   for (let t = startDate.getTime(); t <= end; t += stepMs) {
     const d = new Date(t);
@@ -2900,9 +3711,13 @@ function computeNextPasses(sat, observer, startDate, hoursWindow = 24, minElevat
     }
     const elevDeg = satellite.radiansToDegrees(look.elevation);
 
-    if (!inPass && elevDeg >= minElevationDeg) {
+    if (
+      !inPass &&
+      elevDeg >= minElevationDeg &&
+      (!Number.isFinite(lastElevDeg) || lastElevDeg < minElevationDeg)
+    ) {
       inPass = true;
-      passStart = d;
+      passStart = interpolateThresholdTime(lastDate, lastElevDeg, d, elevDeg, minElevationDeg) || d;
       maxElevation = elevDeg;
       maxAt = d;
     }
@@ -2914,7 +3729,7 @@ function computeNextPasses(sat, observer, startDate, hoursWindow = 24, minElevat
       }
 
       if (elevDeg < minElevationDeg) {
-        const passEnd = d;
+        const passEnd = interpolateThresholdTime(lastDate, lastElevDeg, d, elevDeg, minElevationDeg) || d;
         passes.push({
           start: passStart,
           end: passEnd,
@@ -2929,6 +3744,18 @@ function computeNextPasses(sat, observer, startDate, hoursWindow = 24, minElevat
     if (passes.length >= maxPasses) {
       break;
     }
+
+    lastElevDeg = elevDeg;
+    lastDate = d;
+  }
+
+  if (inPass && passStart) {
+    passes.push({
+      start: passStart,
+      end: new Date(end),
+      maxElevation,
+      maxAt: maxAt || new Date(end)
+    });
   }
 
   return passes;
@@ -2967,9 +3794,37 @@ function findLosWindowForPass(sat, observer, pass) {
   return match || null;
 }
 
-function drawPassTrack(sat, from, to) {
+function timesAreNear(a, b, toleranceMs = 1500) {
+  if (!(a instanceof Date) || !(b instanceof Date)) {
+    return false;
+  }
+  return Math.abs(a.getTime() - b.getTime()) <= toleranceMs;
+}
+
+function drawPassTrack(sat, from, to, trackOpacity = 0.9, maxAt = null, maxElevationDeg = null, trackIndex = null) {
   const pts = [];
   const stepMs = 60 * 1000;
+  const rendered = { lines: [], labels: [], points: [], hitLines: [] };
+  const createPassPoint = (lat, lon, shift, options = {}) => {
+    const { minOpacity = trackOpacity, minFillOpacity = trackOpacity } = options;
+    const baseOpacity = Math.max(trackOpacity, minOpacity);
+    const baseFillOpacity = Math.max(trackOpacity, minFillOpacity);
+    const point = L.circleMarker([lat, lon + shift], {
+      radius: 1.25,
+      color: sat.color,
+      fillColor: sat.color,
+      weight: 1,
+      opacity: baseOpacity,
+      fillOpacity: baseFillOpacity,
+      interactive: false,
+      keyboard: false
+    }).addTo(passLayer);
+    point.__baseOpacity = baseOpacity;
+    point.__baseFillOpacity = baseFillOpacity;
+    point.__baseRadius = 1.25;
+    rendered.points.push(point);
+    return point;
+  };
 
   for (let t = from.getTime(); t <= to.getTime(); t += stepMs) {
     const pos = satPositionAt(sat, new Date(t));
@@ -2978,9 +3833,202 @@ function drawPassTrack(sat, from, to) {
     }
   }
 
-  if (pts.length > 1) {
-    addWrappedPolyline(passLayer, pts, { color: sat.color, weight: 2 });
+  if (pts.length < 2) {
+    return rendered;
   }
+
+  const startPoint = pts[0];
+  const endPoint = pts[pts.length - 1];
+  const startLabel = formatTimeOnly(from);
+  const endLabel = formatTimeOnly(to);
+  WORLD_COPY_SHIFTS.forEach((shift) => {
+    createPassPoint(startPoint[0], startPoint[1], shift, { minOpacity: 0, minFillOpacity: 0 });
+    createPassPoint(endPoint[0], endPoint[1], shift, { minOpacity: 0, minFillOpacity: 0 });
+
+    const startMarker = L.marker([startPoint[0], startPoint[1] + shift], {
+      icon: L.divIcon({
+        className: "pass-time-label pass-time-label-start",
+        html: escapeHtml(startLabel),
+        iconSize: [1, 1],
+        iconAnchor: [0, 0]
+      }),
+      interactive: false,
+      keyboard: false
+    }).addTo(passLayer);
+    startMarker.__baseOpacity = 0.15;
+    startMarker.__labelType = "start";
+    startMarker.setOpacity(0.15);
+    rendered.labels.push(startMarker);
+
+    const endMarker = L.marker([endPoint[0], endPoint[1] + shift], {
+      icon: L.divIcon({
+        className: "pass-time-label pass-time-label-end",
+        html: escapeHtml(endLabel),
+        iconSize: [1, 1],
+        iconAnchor: [0, 0]
+      }),
+      interactive: false,
+      keyboard: false
+    }).addTo(passLayer);
+    endMarker.__baseOpacity = 0.15;
+    endMarker.__labelType = "end";
+    endMarker.setOpacity(0.15);
+    rendered.labels.push(endMarker);
+  });
+
+  if (maxAt instanceof Date && Number.isFinite(maxAt.getTime())) {
+    const maxAtMs = maxAt.getTime();
+    const fromMs = from.getTime();
+    const toMs = to.getTime();
+    if (maxAtMs >= fromMs && maxAtMs <= toMs) {
+      const maxPos = satPositionAt(sat, maxAt);
+      if (maxPos) {
+        const maxTime = formatTimeOnly(maxAt);
+        const maxElText = Number.isFinite(maxElevationDeg) ? `${maxElevationDeg.toFixed(1)}°` : "";
+        const maxLabelHtml = `
+          <span class="pass-max-time">${escapeHtml(maxTime)}</span>
+          <span class="pass-max-elevation">${escapeHtml(maxElText)}</span>
+        `;
+        WORLD_COPY_SHIFTS.forEach((shift) => {
+          createPassPoint(maxPos.lat, maxPos.lon, shift, { minOpacity: 0.75, minFillOpacity: 0.85 });
+
+          const maxMarker = L.marker([maxPos.lat, maxPos.lon + shift], {
+            icon: L.divIcon({
+              className: "pass-time-label pass-time-label-max",
+              html: maxLabelHtml,
+              iconSize: [1, 1],
+              iconAnchor: [0, 0]
+            }),
+            interactive: false,
+            keyboard: false
+          }).addTo(passLayer);
+          maxMarker.__baseOpacity = trackOpacity;
+          maxMarker.__labelType = "max";
+          rendered.labels.push(maxMarker);
+        });
+      }
+    }
+  }
+
+  const segments = splitTrackOnDateLine(pts);
+  segments.forEach((segment) => {
+    const lines = addWrappedPolyline(passLayer, segment, {
+      color: sat.color,
+      weight: 1,
+      opacity: trackOpacity,
+      lineCap: "round",
+      lineJoin: "round",
+      interactive: false
+    });
+    const hitLines = addWrappedPolyline(passLayer, segment, {
+      color: sat.color,
+      weight: 10,
+      opacity: 0,
+      lineCap: "round",
+      lineJoin: "round",
+      interactive: true
+    });
+
+    lines.forEach((line) => {
+      line.__baseOpacity = trackOpacity;
+      line.__baseWeight = 1;
+      rendered.lines.push(line);
+    });
+
+    hitLines.forEach((hitLine) => {
+      if (Number.isInteger(trackIndex)) {
+        hitLine.on("mouseover", () => {
+          if (passHoverResetTimer) {
+            clearTimeout(passHoverResetTimer);
+            passHoverResetTimer = null;
+          }
+          highlightPassTrack(trackIndex);
+        });
+        hitLine.on("mouseout", () => {
+          if (passHoverResetTimer) {
+            clearTimeout(passHoverResetTimer);
+          }
+          passHoverResetTimer = setTimeout(() => {
+            highlightPassTrack(null);
+            passHoverResetTimer = null;
+          }, 50);
+        });
+      }
+      rendered.hitLines.push(hitLine);
+    });
+  });
+  return rendered;
+}
+
+function highlightPassTrack(activeIndex = null) {
+  renderedPassTracks.forEach((track, idx) => {
+    track.lines.forEach((line) => {
+      const baseOpacity = Number.isFinite(line.__baseOpacity) ? line.__baseOpacity : 0.65;
+      const baseWeight = Number.isFinite(line.__baseWeight) ? line.__baseWeight : 2;
+      const isFocused = activeIndex === null ? false : idx === activeIndex;
+      const opacity = activeIndex === null
+        ? baseOpacity
+        : isFocused
+          ? Math.max(0.9, baseOpacity)
+          : Math.max(0.02, baseOpacity * 0.25);
+      const weight = activeIndex === null
+        ? baseWeight
+        : isFocused
+          ? baseWeight + 0.6
+          : baseWeight;
+      line.setStyle({ opacity, weight });
+    });
+
+    track.labels.forEach((labelMarker) => {
+      const baseOpacity = Number.isFinite(labelMarker.__baseOpacity) ? labelMarker.__baseOpacity : 0.75;
+      const isFocused = activeIndex === null ? false : idx === activeIndex;
+      const isStartOrEnd = labelMarker.__labelType === "start" || labelMarker.__labelType === "end";
+      const opacity = activeIndex === null
+        ? (isStartOrEnd ? 0.15 : baseOpacity)
+        : isFocused
+          ? 1
+          : isStartOrEnd
+            ? 0.15
+            : Math.max(0.02, baseOpacity * 0.25);
+      labelMarker.setOpacity(opacity);
+    });
+
+    (track.points || []).forEach((pointMarker) => {
+      const baseOpacity = Number.isFinite(pointMarker.__baseOpacity) ? pointMarker.__baseOpacity : 0.75;
+      const baseFillOpacity = Number.isFinite(pointMarker.__baseFillOpacity)
+        ? pointMarker.__baseFillOpacity
+        : 0.85;
+      const baseRadius = Number.isFinite(pointMarker.__baseRadius) ? pointMarker.__baseRadius : 2.5;
+      const isFocused = activeIndex === null ? false : idx === activeIndex;
+      const opacity = activeIndex === null
+        ? baseOpacity
+        : isFocused
+          ? Math.max(0.95, baseOpacity)
+          : Math.max(0.02, baseOpacity * 0.25);
+      const fillOpacity = activeIndex === null
+        ? baseFillOpacity
+        : isFocused
+          ? Math.max(0.95, baseFillOpacity)
+          : Math.max(0.02, baseFillOpacity * 0.25);
+      const radius = activeIndex === null
+        ? baseRadius
+        : isFocused
+          ? baseRadius + 1
+          : baseRadius;
+      pointMarker.setStyle({ opacity, fillOpacity, radius });
+    });
+  });
+
+  renderedPassItems.forEach((item, idx) => {
+    if (!item) {
+      return;
+    }
+    if (activeIndex !== null && idx === activeIndex) {
+      item.classList.add("pass-item-hover");
+    } else {
+      item.classList.remove("pass-item-hover");
+    }
+  });
 }
 
 function updateObserverMarker() {
@@ -3009,42 +4057,82 @@ function updateObserverMarker() {
   }
 }
 
-function renderPasses() {
+function renderPasses(overrideSatId = null, options = {}) {
+  const { preview = false } = options;
   passLayer.clearLayers();
+  renderedPassTracks = [];
+  renderedPassItems = [];
+  if (passHoverResetTimer) {
+    clearTimeout(passHoverResetTimer);
+    passHoverResetTimer = null;
+  }
   updateObserverMarker();
 
-  const resolvedSatId = resolvePassSatelliteIdFromInput();
-  selectedPassSatId = resolvedSatId;
+  const resolvedSatId = overrideSatId || resolvePassSatelliteIdFromInput();
+  if (!preview) {
+    selectedPassSatId = resolvedSatId;
+  }
   const sat = satellites.find((s) => s.id === resolvedSatId);
   if (!sat) {
     passesListEl.innerHTML = "<li>Select a satellite first.</li>";
+    renderedPassItems = [];
     return;
   }
 
   const observer = observerGd();
   if (!observer) {
     passesListEl.innerHTML = "";
+    renderedPassItems = [];
     return;
   }
   const simNow = currentSimTime();
-  const dayStart = new Date(simNow);
-  dayStart.setHours(0, 0, 0, 0);
-  const passes = computeNextPasses(sat, observer, dayStart, 24, 10, 128).filter((pass) => {
-    return pass.start.toDateString() === simNow.toDateString();
-  });
+  const passRangeMode = String(passesDaysSelectEl?.value || "1");
+  let passes = [];
+  let statusRangeLabel = "next 1 day";
+
+  if (passRangeMode === "upcoming3" || passRangeMode === "upcoming5") {
+    const upcomingCount = passRangeMode === "upcoming5" ? 5 : 3;
+    passes = computeNextPasses(sat, observer, simNow, 72, 0, upcomingCount).filter((pass) => {
+      return pass.end.getTime() >= simNow.getTime();
+    });
+    statusRangeLabel = `next ${upcomingCount} upcoming passes`;
+  } else {
+    const daysRange = Math.max(1, Math.min(3, Number(passRangeMode || 1)));
+    const dayStart = new Date(simNow);
+    dayStart.setHours(0, 0, 0, 0);
+    const rangeEnd = new Date(dayStart.getTime() + daysRange * 24 * 3600000);
+    passes = computeNextPasses(sat, observer, dayStart, daysRange * 24, 0, 512).filter((pass) => {
+      return pass.start.getTime() >= dayStart.getTime() && pass.start.getTime() < rangeEnd.getTime();
+    });
+    statusRangeLabel = `next ${daysRange} day(s)`;
+  }
 
   if (!passes.length) {
-    passesListEl.innerHTML = "<li>No passes above 10 degrees in next 24h.</li>";
+    passesListEl.innerHTML = "<li>No LOS passes found in selected range.</li>";
+    renderedPassItems = [];
     return;
   }
 
+  const passEntries = [];
   passesListEl.innerHTML = "";
   passes.forEach((pass, index) => {
     const losWindow = findLosWindowForPass(sat, observer, pass);
+    passEntries.push({ pass, losWindow });
     const li = document.createElement("li");
     li.className = "pass-item";
+    const activeStart = losWindow?.start || pass.start;
+    const activeEnd = losWindow?.end || pass.end;
+    const isActiveNow = simNow.getTime() >= activeStart.getTime() && simNow.getTime() <= activeEnd.getTime();
+    if (isActiveNow) {
+      li.classList.add("pass-item-active");
+      li.style.setProperty("--pass-accent", sat.color || ACCENT_GREEN);
+    }
     const losStart = losWindow ? formatTimeOnly(losWindow.start) : "N/A";
     const losEnd = losWindow ? formatTimeOnly(losWindow.end) : "N/A";
+    const losMatchesPass =
+      losWindow &&
+      timesAreNear(losWindow.start, pass.start) &&
+      timesAreNear(losWindow.end, pass.end);
     const aosAz = azimuthDegreesAt(sat, observer, losWindow ? losWindow.start : pass.start);
     const losAz = azimuthDegreesAt(sat, observer, losWindow ? losWindow.end : pass.end);
     const maxAz = azimuthDegreesAt(sat, observer, pass.maxAt);
@@ -3062,21 +4150,55 @@ function renderPasses() {
       <div class="pass-row"><span>Rise Direction</span><span>${escapeHtml(aosDir)} (${escapeHtml(aosAzText)})</span></div>
       <div class="pass-row"><span>Set Direction</span><span>${escapeHtml(losDir)} (${escapeHtml(losAzText)})</span></div>
       <div class="pass-row"><span>Max Elevation Az</span><span>${escapeHtml(maxDir)} (${escapeHtml(maxAzText)})</span></div>
-      <div class="pass-row"><span>LOS Appears</span><span>${escapeHtml(losStart)}</span></div>
-      <div class="pass-row"><span>LOS Disappears</span><span>${escapeHtml(losEnd)}</span></div>
+      ${
+        losWindow && !losMatchesPass
+          ? `<div class="pass-row"><span>LOS Appears</span><span>${escapeHtml(losStart)}</span></div>
+      <div class="pass-row"><span>LOS Disappears</span><span>${escapeHtml(losEnd)}</span></div>`
+          : ""
+      }
     `;
+    li.addEventListener("mouseenter", () => {
+      if (passHoverResetTimer) {
+        clearTimeout(passHoverResetTimer);
+        passHoverResetTimer = null;
+      }
+      highlightPassTrack(index);
+    });
+    li.addEventListener("mouseleave", () => {
+      if (passHoverResetTimer) {
+        clearTimeout(passHoverResetTimer);
+      }
+      passHoverResetTimer = setTimeout(() => {
+        highlightPassTrack(null);
+        passHoverResetTimer = null;
+      }, 50);
+    });
     passesListEl.appendChild(li);
+    renderedPassItems.push(li);
   });
 
-  for (const pass of passes) {
-    drawPassTrack(
-      sat,
-      new Date(pass.start.getTime() - 15 * 60 * 1000),
-      new Date(pass.end.getTime() + 15 * 60 * 1000)
-    );
+  if (showPassesOnMap) {
+    const totalPasses = passEntries.length;
+    passEntries.forEach(({ pass, losWindow }, idx) => {
+      const t = totalPasses > 1 ? idx / (totalPasses - 1) : 0;
+      const opacity = 1 - (1 - 0.15) * t;
+      const trackStart = losWindow?.start || pass.start;
+      const trackEnd = losWindow?.end || pass.end;
+      renderedPassTracks[idx] = drawPassTrack(
+        sat,
+        trackStart,
+        trackEnd,
+        opacity,
+        pass.maxAt,
+        pass.maxElevation,
+        idx
+      );
+    });
   }
 
-  setStatus(`Showing ${passes.length} passes for ${sat.name} on ${formatDateOnly(simNow)}.`);
+  if (!preview) {
+    setStatus(`Showing ${passes.length} passes for ${sat.name} in ${statusRangeLabel}.`);
+  }
 }
 
 function animate() {
@@ -3085,15 +4207,7 @@ function animate() {
   lastTick = now;
 
   if (playing) {
-    simulatedTimeMs += dt * speed;
-    const hourOffset = (simulatedTimeMs - now) / 3600000;
-    const clamped = Math.max(-24, Math.min(72, hourOffset));
-    if (clamped !== hourOffset) {
-      simulatedTimeMs = now + clamped * 3600000;
-      playing = false;
-      playToggleEl.textContent = "Play";
-    }
-    timelineEl.value = ((simulatedTimeMs - now) / 3600000).toFixed(1);
+    simulatedTimeMs += dt * currentSpeedMultiplier();
   }
 
   updateTimeLabel();
@@ -3103,20 +4217,105 @@ function animate() {
 
 playToggleEl.addEventListener("click", () => {
   playing = !playing;
-  playToggleEl.textContent = playing ? "Pause" : "Play";
+  if (playing) {
+    lastTick = Date.now();
+  }
+  syncPlayButton();
+  const speedFactor = currentSpeedMultiplier();
+  setStatus(playing ? `Simulation running at ${speedFactor}x.` : "Simulation paused.");
 });
 
 speedSelectEl.addEventListener("change", () => {
-  speed = Number(speedSelectEl.value);
+  speed = currentSpeedMultiplier();
+  if (playing) {
+    setStatus(`Simulation speed set to ${speed}x.`);
+  }
 });
 
-timelineEl.addEventListener("input", () => {
-  simulatedTimeMs = Date.now() + Number(timelineEl.value) * 3600000;
-  playing = false;
-  playToggleEl.textContent = "Play";
-  redrawMarkers();
-  updateTimeLabel();
-});
+if (timelineEl) {
+  let jogActive = false;
+  let jogLastX = 0;
+  let jogCarryPx = 0;
+  let jogVisualOffset = 0;
+
+  const applyJogSteps = (steps) => {
+    if (!steps) {
+      return;
+    }
+    const speedFactor = currentSpeedMultiplier();
+    simulatedTimeMs += steps * TIMELINE_JOG_STEP_MS * speedFactor;
+    redrawMarkers();
+    updateTimeLabel();
+  };
+
+  const pushJogDeltaPx = (deltaPx) => {
+    jogCarryPx += deltaPx;
+    const steps = Math.trunc(jogCarryPx / TIMELINE_JOG_PX_PER_STEP);
+    if (steps !== 0) {
+      jogCarryPx -= steps * TIMELINE_JOG_PX_PER_STEP;
+      applyJogSteps(steps);
+    }
+
+    jogVisualOffset = (jogVisualOffset + deltaPx) % 2000;
+    timelineEl.style.setProperty("--jog-offset", `${jogVisualOffset}px`);
+  };
+
+  timelineEl.addEventListener("pointerdown", (event) => {
+    jogActive = true;
+    jogLastX = event.clientX;
+    jogCarryPx = 0;
+    timelineEl.setPointerCapture(event.pointerId);
+    timelineEl.focus();
+  });
+
+  timelineEl.addEventListener("pointermove", (event) => {
+    if (!jogActive) {
+      return;
+    }
+    const dx = event.clientX - jogLastX;
+    jogLastX = event.clientX;
+    pushJogDeltaPx(dx);
+  });
+
+  const stopJog = () => {
+    jogActive = false;
+    jogCarryPx = 0;
+  };
+
+  timelineEl.addEventListener("pointerup", stopJog);
+  timelineEl.addEventListener("pointercancel", stopJog);
+  timelineEl.addEventListener("lostpointercapture", stopJog);
+
+  timelineEl.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    pushJogDeltaPx(-event.deltaY * 0.15);
+  }, { passive: false });
+
+  timelineEl.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      applyJogSteps(1);
+      return;
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      applyJogSteps(-1);
+    }
+  });
+}
+
+if (resetTimeEl) {
+  resetTimeEl.addEventListener("click", () => {
+    simulatedTimeMs = Date.now();
+    playing = true;
+    syncPlayButton();
+    timelineEl?.style.setProperty("--jog-offset", "0px");
+    redrawMarkers(true);
+    renderPasses();
+    updateTimeLabel();
+    setStatus("Live time resumed.");
+  });
+}
 
 tabButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -3124,8 +4323,13 @@ tabButtons.forEach((btn) => {
   });
 });
 
-computePassesEl.addEventListener("click", renderPasses);
+if (computePassesEl) {
+  computePassesEl.addEventListener("click", renderPasses);
+}
 searchLocationEl.addEventListener("click", searchObserverLocation);
+if (resetLocationEl) {
+  resetLocationEl.addEventListener("click", resetObserverLocation);
+}
 if (saveProviderSettingsEl) {
   saveProviderSettingsEl.addEventListener("click", async () => {
     const identity = spaceTrackIdentityEl ? spaceTrackIdentityEl.value.trim() : "";
@@ -3138,13 +4342,15 @@ if (saveProviderSettingsEl) {
   });
 }
 
-locationResultsEl.addEventListener("change", () => {
-  const idx = Number(locationResultsEl.value);
-  if (!Number.isFinite(idx) || !locationCandidates[idx]) {
-    return;
-  }
-  applyLocationCandidate(locationCandidates[idx]);
-});
+if (locationResultsEl) {
+  locationResultsEl.addEventListener("change", () => {
+    const idx = Number(locationResultsEl.value);
+    if (!Number.isFinite(idx) || !locationCandidates[idx]) {
+      return;
+    }
+    applyLocationCandidate(locationCandidates[idx]);
+  });
+}
 
 if (locationQueryEl) {
   locationQueryEl.addEventListener("keydown", (event) => {
@@ -3239,8 +4445,10 @@ if (locationQueryEl) {
     updateObserverMarker();
     updateComputePassesState();
     updateLocationSummary();
+    redrawMarkers(true);
     updateObserverAltitudeFromCoords(coords, true);
     renderPasses();
+    writeStoredObserverLocation();
   });
 });
 
@@ -3250,7 +4458,82 @@ observerAltEl.addEventListener("change", () => {
   updateLocationSummary();
   redrawMarkers(true);
   renderPasses();
+  writeStoredObserverLocation();
 });
+
+if (allLosToggleEl) {
+  allLosToggleEl.addEventListener("change", () => {
+    allLosEnabled = Boolean(allLosToggleEl.checked);
+    writeAllLosEnabled(allLosEnabled);
+    renderAllLosCircles(true);
+  });
+}
+
+if (losOnlyToggleEl) {
+  losOnlyToggleEl.addEventListener("change", () => {
+    losOnlyEnabled = Boolean(losOnlyToggleEl.checked);
+    writeLosOnlyEnabled(losOnlyEnabled);
+    refreshSatelliteSelect();
+    redrawMarkers(true);
+    renderPasses();
+  });
+}
+
+const onShowPassesToggleChange = (enabled) => {
+  showPassesOnMap = Boolean(enabled);
+  writeShowPassesOnMap(showPassesOnMap);
+  syncShowPassesToggles();
+  renderPasses();
+};
+
+if (showPassesToggleEl) {
+  showPassesToggleEl.addEventListener("change", () => {
+    onShowPassesToggleChange(showPassesToggleEl.checked);
+  });
+}
+
+if (showPassesTogglePassesEl) {
+  showPassesTogglePassesEl.addEventListener("change", () => {
+    onShowPassesToggleChange(showPassesTogglePassesEl.checked);
+  });
+}
+
+if (maxAltitudeToggleEl) {
+  maxAltitudeToggleEl.addEventListener("change", () => {
+    maxAltitudeEnabled = Boolean(maxAltitudeToggleEl.checked);
+    writeMaxAltitudeEnabled(maxAltitudeEnabled);
+    syncMaxAltitudeControl();
+    refreshSatelliteSelect();
+    redrawMarkers(true);
+    renderPasses();
+  });
+}
+
+if (maxAltitudeInputEl) {
+  maxAltitudeInputEl.addEventListener("change", () => {
+    applyMaxAltitudeInput();
+    refreshSatelliteSelect();
+    redrawMarkers(true);
+    renderPasses();
+  });
+
+  maxAltitudeInputEl.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    applyMaxAltitudeInput();
+    refreshSatelliteSelect();
+    redrawMarkers(true);
+    renderPasses();
+  });
+}
+
+if (passesDaysSelectEl) {
+  passesDaysSelectEl.addEventListener("change", () => {
+    renderPasses();
+  });
+}
 
 if (locationFilterDetailsEl) {
   locationFilterDetailsEl.addEventListener("toggle", () => {
@@ -3263,6 +4546,7 @@ window.addEventListener("resize", layoutSidebarSections);
 
 if (satComboInputEl) {
   satComboInputEl.addEventListener("input", () => {
+    delete satComboInputEl.dataset.selectedSatId;
     renderSatComboSuggestions(findPassSatelliteMatches(satComboInputEl.value));
     selectedPassSatId = resolvePassSatelliteIdFromInput();
     renderPasses();
@@ -3273,6 +4557,9 @@ if (satComboInputEl) {
     const sat = satellites.find((item) => item.id === selectedPassSatId);
     if (sat) {
       satComboInputEl.value = satDisplayLabel(sat);
+      satComboInputEl.dataset.selectedSatId = sat.id;
+    } else {
+      delete satComboInputEl.dataset.selectedSatId;
     }
     clearSatComboSuggestions();
     renderPasses();
@@ -3287,23 +4574,63 @@ if (satComboInputEl) {
   });
 
   satComboInputEl.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveSatComboSuggestActive(1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveSatComboSuggestActive(-1);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      clearSatComboSuggestions();
+      return;
+    }
     if (event.key !== "Enter") {
       return;
     }
     event.preventDefault();
-    const first = satComboSuggestCandidates[0];
-    if (first) {
-      setPassSatelliteInputById(first.id);
+    const selected = getActiveSatComboSuggestion();
+    if (selected) {
+      setPassSatelliteInputById(selected.id);
       clearSatComboSuggestions();
     }
     renderPasses();
   });
+
+  const onSatComboWheel = (event) => {
+    if (!satComboSuggestCandidates.length) {
+      return;
+    }
+    event.preventDefault();
+    moveSatComboSuggestActive(event.deltaY >= 0 ? 1 : -1);
+  };
+  satComboInputEl.addEventListener("wheel", onSatComboWheel, { passive: false });
+  if (satComboSuggestBoxEl) {
+    satComboSuggestBoxEl.addEventListener("wheel", onSatComboWheel, { passive: false });
+  }
 }
 
 if (satInfoEl) {
   satInfoEl.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) {
+      return;
+    }
+    const watchBtn = target.closest("#sat-watch-toggle");
+    if (watchBtn) {
+      const satId = watchBtn.getAttribute("data-sat-id") || selectedSatId || "";
+      const tracked = toggleTrackedSatellite(satId);
+      buildFilterControls();
+      redrawMarkers(true);
+      const sat = satellites.find((item) => item.id === satId);
+      if (sat) {
+        renderSatInfo(sat, satInfoCache.get(sat.id) || {});
+        setStatus(tracked ? `${sat.name} added to Tracked.` : `${sat.name} removed from Tracked.`);
+      }
       return;
     }
     if (!target.closest("#sat-info-close")) {
@@ -3345,7 +4672,6 @@ if (geoPermissionBtnEl) {
       const merged = mergeUniqueLocations([resolved, ...nearby]);
       populateLocationResults(merged);
       setLocationResultsVisible(true);
-      locationResultsEl.value = "0";
       applyLocationCandidate(merged[0]);
       setGeoPermissionPopupVisible(false);
       setStatus(`Detected location: ${formatLocationLabel(merged[0])}.`);
@@ -3390,6 +4716,16 @@ if (satSearchInputEl) {
   });
 }
 
+if (timeFormatSelectEl) {
+  timeFormatSelectEl.addEventListener("change", () => {
+    timeFormat = timeFormatSelectEl.value === "12h" ? "12h" : "24h";
+    writeTimeFormat(timeFormat);
+    updateTimeLabel();
+    renderPasses();
+    setStatus(`Time format set to ${timeFormat === "12h" ? "12-hour" : "24-hour"}.`);
+  });
+}
+
 document.addEventListener("click", (event) => {
   const target = event.target;
 
@@ -3425,6 +4761,46 @@ async function bootstrap() {
   setActiveTab("filters");
   applyVerticalFitConstraints(true);
   simulatedTimeMs = Date.now();
+  timeFormat = readTimeFormat();
+  syncTimeFormatControl();
+  selectedCategories = readSelectedCategories();
+  writeSelectedCategories();
+  trackedSatIds = readTrackedSatIds();
+  const initialized = readPrefsInitialized();
+  if (!initialized) {
+    allLosEnabled = false;
+    losOnlyEnabled = false;
+    maxAltitudeEnabled = false;
+    writeAllLosEnabled(false);
+    writeLosOnlyEnabled(false);
+    writeShowPassesOnMap(true);
+    writeMaxAltitudeEnabled(false);
+    writePrefsInitialized();
+  } else {
+    allLosEnabled = readAllLosEnabled();
+    losOnlyEnabled = readLosOnlyEnabled();
+    showPassesOnMap = readShowPassesOnMap();
+    maxAltitudeEnabled = readMaxAltitudeEnabled();
+  }
+  maxSatelliteAltitudeKm = readMaxSatelliteAltitudeKm();
+  syncMaxAltitudeControl();
+  if (allLosToggleEl) {
+    allLosToggleEl.checked = allLosEnabled;
+  }
+  if (losOnlyToggleEl) {
+    losOnlyToggleEl.checked = losOnlyEnabled;
+  }
+  syncShowPassesToggles();
+  const storedObserver = readStoredObserverLocation();
+  if (storedObserver) {
+    observerLatEl.value = storedObserver.lat.toFixed(4);
+    observerLonEl.value = storedObserver.lon.toFixed(4);
+    observerAltEl.value = storedObserver.alt === null ? "" : String(storedObserver.alt);
+    if (locationQueryEl && storedObserver.name) {
+      locationQueryEl.value = storedObserver.name;
+    }
+    updateObserverMarker();
+  }
   setSatInfoVisible(false);
   setGeoPermissionPopupVisible(false);
   const creds = readProviderCredentials();
@@ -3439,9 +4815,19 @@ async function bootstrap() {
   updateComputePassesState();
   updateLocationSummary();
   layoutSidebarSections();
-  await loadSatellites();
+  const cachedSatellites = readSatelliteSnapshot();
+  const cachedTleSatellites = cachedSatellites.length ? [] : buildSatellitesFromTleCache();
+  const warmStartSatellites = cachedSatellites.length ? cachedSatellites : cachedTleSatellites;
+  if (warmStartSatellites.length) {
+    satellites = warmStartSatellites;
+    buildFilterControls();
+    refreshSatelliteSelect();
+    redrawMarkers(true);
+  }
+  await loadSatellites({ showLoading: !warmStartSatellites.length });
   redrawMarkers(true);
   updateTimeLabel();
+  syncPlayButton();
   passesListEl.innerHTML = "";
   setStatus("Choose your observer location to calculate passes.");
   setTimeout(() => {

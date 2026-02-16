@@ -84,3 +84,15 @@ Example response:
 - Radio info is normalized through backend `/api/sat/:norad/radio` (SatNOGS + optional AMSAT mapping).
 - Additional CSV radio rows can be loaded via `AMSAT_FREQ_CSV_PATH`.
 - Starlink and active groups are capped for browser performance.
+
+## Latest UX updates
+- Added `Settings` tab with `12-hour / 24-hour` time format selector (stored in localStorage).
+- `Pass Range` now supports `3 upcoming passes` and `5 upcoming passes`.
+- Pass lines use LOS-based windows more consistently.
+- Added map labels for pass start/end and max-elevation moment.
+- Added max-elevation marker with time + elevation (`°`) in a 2-line compact label.
+- Added start/end markers on pass lines with matching style.
+- You can hover passes directly on the map (larger invisible hover hit area).
+- Sidebar pass cards and map pass lines now highlight in sync.
+- Non-focused pass labels are dimmed (start/end kept subtle at 15%).
+- LOS rows are hidden when they match pass start/end times.
