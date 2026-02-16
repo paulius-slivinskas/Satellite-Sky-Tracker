@@ -394,6 +394,12 @@ const statusQueue = [];
 let activeStatusToast = null;
 let amsatCsvRadioIndex = null;
 let amsatCsvRadioLoadPromise = null;
+let amsatCsvNextRetryAt = 0;
+let amsatCsvRetryDelayMs = 5000;
+let amsatCsvLastError = "";
+let amsatCsvLastWarnAt = 0;
+const AMSAT_CSV_RETRY_MAX_MS = 5 * 60 * 1000;
+const AMSAT_CSV_WARN_COOLDOWN_MS = 60 * 1000;
 let allLosEnabled = false;
 let losOnlyEnabled = false;
 let showPassesOnMap = true;
@@ -1900,19 +1906,40 @@ async function ensureLocalAmsatCsvRadioIndex() {
     return amsatCsvRadioLoadPromise;
   }
 
+  const now = Date.now();
+  if (amsatCsvNextRetryAt && now < amsatCsvNextRetryAt) {
+    return new Map();
+  }
+
+  const warnAmsatCsvUnavailable = (reason, retryMs) => {
+    const current = Date.now();
+    const retrySec = Math.max(1, Math.ceil(retryMs / 1000));
+    const normalizedReason = String(reason || "unavailable").trim();
+    const shouldSkipWarn =
+      normalizedReason === amsatCsvLastError &&
+      current - amsatCsvLastWarnAt < AMSAT_CSV_WARN_COOLDOWN_MS;
+    if (shouldSkipWarn) {
+      return;
+    }
+    amsatCsvLastWarnAt = current;
+    amsatCsvLastError = normalizedReason;
+    setStatus(`AMSAT CSV unavailable (${normalizedReason}). Retrying in ${retrySec}s.`, {
+      key: "amsat-csv-load",
+      durationMs: 9000
+    });
+  };
+
   amsatCsvRadioLoadPromise = (async () => {
     const map = new Map();
     try {
       const response = await fetch("/amsat-all-frequencies.csv", { cache: "no-store" });
       if (!response.ok) {
-        amsatCsvRadioIndex = map;
-        return map;
+        throw new Error(`HTTP ${response.status}`);
       }
       const text = await response.text();
       const lines = text.split(/\r?\n/).filter((line) => line.trim().length);
       if (!lines.length) {
-        amsatCsvRadioIndex = map;
-        return map;
+        throw new Error("empty file");
       }
       const headers = parseCsvLineLocal(lines[0]).map((h) => h.trim());
       const idx = (name) => headers.indexOf(name);
@@ -1925,8 +1952,7 @@ async function ensureLocalAmsatCsvRadioIndex() {
       const callsignIdx = idx("callsign");
       const statusIdx = idx("status");
       if (noradIdx < 0) {
-        amsatCsvRadioIndex = map;
-        return map;
+        throw new Error("norad_id column missing");
       }
 
       for (let i = 1; i < lines.length; i += 1) {
@@ -1954,11 +1980,22 @@ async function ensureLocalAmsatCsvRadioIndex() {
         arr.push(entry);
         map.set(norad, arr);
       }
+
+      amsatCsvRadioIndex = map;
+      amsatCsvNextRetryAt = 0;
+      amsatCsvRetryDelayMs = 5000;
+      amsatCsvLastError = "";
+      clearStatusToast("amsat-csv-load");
+      return map;
     } catch (error) {
-      // Ignore local CSV loading errors, keep empty map.
+      const retryMs = amsatCsvRetryDelayMs;
+      amsatCsvNextRetryAt = Date.now() + retryMs;
+      amsatCsvRetryDelayMs = Math.min(amsatCsvRetryDelayMs * 2, AMSAT_CSV_RETRY_MAX_MS);
+      warnAmsatCsvUnavailable(error?.message || "fetch failed", retryMs);
+      return amsatCsvRadioIndex || new Map();
+    } finally {
+      amsatCsvRadioLoadPromise = null;
     }
-    amsatCsvRadioIndex = map;
-    return map;
   })();
 
   return amsatCsvRadioLoadPromise;
