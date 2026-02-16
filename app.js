@@ -1168,7 +1168,7 @@ async function applySharedViewStateLate(state) {
 
   const selectedSat = satByNorad(selected.norad);
   if (selectedSat) {
-    await selectSatellite(selectedSat);
+    await activateSatelliteSelection(selectedSat, false);
   } else {
     redrawMarkers(true);
     renderPasses();
