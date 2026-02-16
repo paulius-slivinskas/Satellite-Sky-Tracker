@@ -2654,6 +2654,39 @@ function lineOfSightRadiusMeters(altKm) {
   return earthRadiusKm * (satAlpha + obsAlpha) * 1000;
 }
 
+function greatCircleDistanceKm(aLatDeg, aLonDeg, bLatDeg, bLonDeg) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const earthRadiusKm = 6378.137;
+  const lat1 = toRad(aLatDeg);
+  const lat2 = toRad(bLatDeg);
+  const dLat = lat2 - lat1;
+  const dLon = toRad(bLonDeg - aLonDeg);
+  const sinLat = Math.sin(dLat / 2);
+  const sinLon = Math.sin(dLon / 2);
+  const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLon * sinLon;
+  return 2 * earthRadiusKm * Math.asin(Math.min(1, Math.sqrt(Math.max(0, h))));
+}
+
+function isInObserverLosFootprint(sat, observer, date) {
+  const deltaKm = observerLosFootprintDeltaKm(sat, observer, date);
+  return Number.isFinite(deltaKm) && deltaKm >= 0;
+}
+
+function observerLosFootprintDeltaKm(sat, observer, date) {
+  const satPos = satPositionAt(sat, date);
+  if (!satPos) {
+    return Number.NaN;
+  }
+  const radiusMeters = lineOfSightRadiusMeters(satPos.altKm);
+  if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
+    return Number.NaN;
+  }
+  const observerLat = satellite.radiansToDegrees(observer.latitude);
+  const observerLon = satellite.radiansToDegrees(observer.longitude);
+  const surfaceDistanceKm = greatCircleDistanceKm(observerLat, observerLon, satPos.lat, satPos.lon);
+  return radiusMeters / 1000 - surfaceDistanceKm;
+}
+
 function splitTrackOnDateLine(points) {
   if (!points.length) {
     return [];
@@ -2681,6 +2714,27 @@ function splitTrackOnDateLine(points) {
   return segments;
 }
 
+function densifyTrackSegment(points, insertsPerEdge = 3) {
+  if (!Array.isArray(points) || points.length < 2 || insertsPerEdge <= 0) {
+    return points;
+  }
+  const out = [];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i];
+    const b = points[i + 1];
+    out.push(a);
+    for (let k = 1; k <= insertsPerEdge; k += 1) {
+      const t = k / (insertsPerEdge + 1);
+      out.push([
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t
+      ]);
+    }
+  }
+  out.push(points[points.length - 1]);
+  return out;
+}
+
 function buildTrackPoints(sat, fromMs, toMs, stepMs) {
   const points = [];
   for (let t = fromMs; t <= toMs; t += stepMs) {
@@ -2700,7 +2754,7 @@ function addWrappedPolyline(layer, points, style) {
   const lines = [];
   WORLD_COPY_SHIFTS.forEach((shift) => {
     const shifted = points.map((pt) => wrappedLatLng(pt, shift));
-    const line = L.polyline(shifted, { ...style, noClip: true }).addTo(layer);
+    const line = L.polyline(shifted, { smoothFactor: 1.2, ...style, noClip: true }).addTo(layer);
     lines.push(line);
   });
   return lines;
@@ -2739,14 +2793,15 @@ function renderSelectedOrbitPath(force = false) {
 
   const simMs = currentSimTime().getTime();
   const halfPeriod = periodMs / 2;
-  const stepMs = Math.max(20000, Math.floor(periodMs / 120));
+  const stepMs = 5 * 1000;
 
   const pastPoints = buildTrackPoints(sat, simMs - halfPeriod, simMs, stepMs);
   const futurePoints = buildTrackPoints(sat, simMs, simMs + halfPeriod, stepMs);
 
   orbitLayer.clearLayers();
   splitTrackOnDateLine(pastPoints).forEach((segment) => {
-    addWrappedPolyline(orbitLayer, segment, {
+    const smoothSegment = densifyTrackSegment(segment, 3);
+    addWrappedPolyline(orbitLayer, smoothSegment, {
       color: sat.color || ACCENT_GREEN,
       weight: 1,
       opacity: 0.15,
@@ -2756,7 +2811,8 @@ function renderSelectedOrbitPath(force = false) {
     });
   });
   splitTrackOnDateLine(futurePoints).forEach((segment) => {
-    addWrappedPolyline(orbitLayer, segment, {
+    const smoothSegment = densifyTrackSegment(segment, 3);
+    addWrappedPolyline(orbitLayer, smoothSegment, {
       color: sat.color || ACCENT_GREEN,
       weight: 1,
       opacity: 0.95,
@@ -4047,7 +4103,7 @@ function getLookAngles(sat, date, observer) {
 
 function computeNextPasses(sat, observer, startDate, hoursWindow = 24, minElevationDeg = 0, maxPasses = 1) {
   const passes = [];
-  const stepMs = 30 * 1000;
+  const stepMs = 5 * 1000;
   const end = startDate.getTime() + hoursWindow * 3600000;
 
   let inPass = false;
@@ -4161,6 +4217,97 @@ function findLosWindowForPass(sat, observer, pass) {
   return match || null;
 }
 
+function findFootprintWindowForPass(sat, observer, pass) {
+  if (!pass || !(pass.start instanceof Date) || !(pass.end instanceof Date) || !(pass.maxAt instanceof Date)) {
+    return null;
+  }
+
+  const stepMs = 2 * 1000;
+  const marginMs = 45 * 60 * 1000;
+  const searchStartMs = pass.start.getTime() - marginMs;
+  const searchEndMs = pass.end.getTime() + marginMs;
+  const peakMs = pass.maxAt.getTime();
+  const interpolateCrossingMs = (aMs, aDelta, bMs, bDelta) => {
+    if (!Number.isFinite(aDelta) || !Number.isFinite(bDelta)) {
+      return bMs;
+    }
+    const denom = aDelta - bDelta;
+    if (Math.abs(denom) < 1e-9) {
+      return bMs;
+    }
+    const ratio = aDelta / denom;
+    const clamped = Math.max(0, Math.min(1, ratio));
+    return aMs + (bMs - aMs) * clamped;
+  };
+
+  const windows = [];
+  let currentWindow = null;
+  let prevMs = null;
+  let prevDelta = Number.NaN;
+
+  for (let t = searchStartMs; t <= searchEndMs; t += stepMs) {
+    const delta = observerLosFootprintDeltaKm(sat, observer, new Date(t));
+    const inside = Number.isFinite(delta) && delta >= 0;
+    const wasInside = Number.isFinite(prevDelta) && prevDelta >= 0;
+
+    if (inside && !wasInside) {
+      const startMs = prevMs === null ? t : interpolateCrossingMs(prevMs, prevDelta, t, delta);
+      currentWindow = {
+        startMs,
+        endMs: t,
+        peakDelta: delta
+      };
+    }
+
+    if (inside && currentWindow) {
+      currentWindow.endMs = t;
+      if (delta > currentWindow.peakDelta) {
+        currentWindow.peakDelta = delta;
+      }
+    }
+
+    if (!inside && wasInside && currentWindow) {
+      currentWindow.endMs = interpolateCrossingMs(prevMs, prevDelta, t, delta);
+      windows.push(currentWindow);
+      currentWindow = null;
+    }
+
+    prevMs = t;
+    prevDelta = delta;
+  }
+
+  if (currentWindow) {
+    windows.push(currentWindow);
+  }
+
+  if (!windows.length) {
+    return null;
+  }
+
+  const picked =
+    windows.find((w) => w.startMs <= peakMs && peakMs <= w.endMs) ||
+    windows
+      .map((w) => ({
+        window: w,
+        overlapMs: Math.max(0, Math.min(w.endMs, pass.end.getTime()) - Math.max(w.startMs, pass.start.getTime()))
+      }))
+      .sort((a, b) => b.overlapMs - a.overlapMs)[0]?.window ||
+    windows
+      .slice()
+      .sort((a, b) => {
+        const da = Math.min(Math.abs(a.startMs - peakMs), Math.abs(a.endMs - peakMs));
+        const db = Math.min(Math.abs(b.startMs - peakMs), Math.abs(b.endMs - peakMs));
+        return da - db;
+      })[0];
+
+  return {
+    start: new Date(picked.startMs),
+    end: new Date(picked.endMs),
+    maxElevation: pass.maxElevation,
+    maxAt: pass.maxAt
+  };
+}
+
 function timesAreNear(a, b, toleranceMs = 1500) {
   if (!(a instanceof Date) || !(b instanceof Date)) {
     return false;
@@ -4170,7 +4317,7 @@ function timesAreNear(a, b, toleranceMs = 1500) {
 
 function drawPassTrack(sat, from, to, trackOpacity = 0.9, maxAt = null, maxElevationDeg = null, trackIndex = null) {
   const pts = [];
-  const stepMs = 60 * 1000;
+  const stepMs = 5 * 1000;
   const rendered = { lines: [], labels: [], points: [], hitLines: [] };
   const createPassPoint = (lat, lon, shift, options = {}) => {
     const { minOpacity = trackOpacity, minFillOpacity = trackOpacity } = options;
@@ -4279,7 +4426,8 @@ function drawPassTrack(sat, from, to, trackOpacity = 0.9, maxAt = null, maxEleva
 
   const segments = splitTrackOnDateLine(pts);
   segments.forEach((segment) => {
-    const lines = addWrappedPolyline(passLayer, segment, {
+    const smoothSegment = densifyTrackSegment(segment, 2);
+    const lines = addWrappedPolyline(passLayer, smoothSegment, {
       color: sat.color,
       weight: 1,
       opacity: trackOpacity,
@@ -4287,7 +4435,7 @@ function drawPassTrack(sat, from, to, trackOpacity = 0.9, maxAt = null, maxEleva
       lineJoin: "round",
       interactive: false
     });
-    const hitLines = addWrappedPolyline(passLayer, segment, {
+    const hitLines = addWrappedPolyline(passLayer, smoothSegment, {
       color: sat.color,
       weight: 10,
       opacity: 0,
@@ -4483,7 +4631,7 @@ function renderPasses(overrideSatId = null, options = {}) {
   const passEntries = [];
   passesListEl.innerHTML = "";
   passes.forEach((pass, index) => {
-    const losWindow = findLosWindowForPass(sat, observer, pass);
+    const losWindow = findFootprintWindowForPass(sat, observer, pass) || findLosWindowForPass(sat, observer, pass);
     passEntries.push({ pass, losWindow });
     const li = document.createElement("li");
     li.className = "pass-item";
