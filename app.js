@@ -5371,7 +5371,7 @@ window.addEventListener("resize", () => {
 if (sidebarToggleEl) {
   sidebarToggleEl.addEventListener("click", () => {
     const collapsed = !document.body.classList.contains("sidebar-collapsed");
-    if (!collapsed && window.matchMedia("(max-width: 680px)").matches && document.body.classList.contains("sat-info-open")) {
+    if (!collapsed && window.matchMedia("(max-width: 920px)").matches && document.body.classList.contains("sat-info-open")) {
       setSatInfoVisible(false);
     }
     setSidebarCollapsed(collapsed);

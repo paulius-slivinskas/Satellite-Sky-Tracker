@@ -1255,6 +1255,10 @@ input::placeholder {
   .sat-info-panel {
     width: 100%;
   }
+
+  body:not(.sidebar-collapsed) #map .leaflet-control-zoom {
+    display: none;
+  }
 }
 
 @media (max-width: 680px) {
@@ -1344,9 +1348,6 @@ input::placeholder {
     bottom: calc(50dvh + var(--overlay-gap));
   }
 
-  body:not(.sidebar-collapsed) #map .leaflet-control-zoom {
-    display: none;
-  }
 }
 
 @keyframes mobileSheetIn {
