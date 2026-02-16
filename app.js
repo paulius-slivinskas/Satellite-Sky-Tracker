@@ -25,10 +25,151 @@ const FLEET_SATCOM_TARGETS = [
   { noradId: "20253", name: "FLTSATCOM 8 (USA 46)" }
 ];
 
+const MANUAL_RADIO_OVERRIDES = [
+  {
+    norad: null,
+    aliases: ["AO-91", "RADFXSAT", "FOX-1B"],
+    uplinkMhz: 435.25,
+    downlinkMhz: 145.96,
+    mode: "FM",
+    callsign: null,
+    status: "Active",
+    notes: "67 Hz CTCSS. Do not attempt access while in eclipse due to battery status."
+  },
+  {
+    norad: null,
+    aliases: ["AO-123", "ASRTU-1"],
+    uplinkMhz: 145.85,
+    downlinkMhz: 435.4,
+    mode: "FM",
+    callsign: null,
+    status: "Active",
+    notes: "67 Hz CTCSS."
+  },
+  {
+    norad: null,
+    aliases: ["CAS-3H", "LILACSAT-2"],
+    uplinkMhz: 144.35,
+    downlinkMhz: 437.2,
+    mode: "FM / Telemetry Beacon",
+    callsign: null,
+    status: "Scheduled",
+    notes: "FM transponder has no fixed schedule. Telemetry beacon on 437.200 MHz when transponder is off."
+  },
+  {
+    norad: null,
+    aliases: ["IO-86", "LAPAN-A2"],
+    uplinkMhz: 145.88,
+    downlinkMhz: 435.88,
+    mode: "FM",
+    callsign: null,
+    status: "Scheduled",
+    notes: "88.5 Hz CTCSS. Low inclination orbit (+/- 30 deg equator). Schedule: https://community.libre.space/t/lapan-a2-io-86-schedule-2026"
+  },
+  {
+    norad: 25544,
+    aliases: ["ISS"],
+    uplinkMhz: 145.99,
+    downlinkMhz: 437.8,
+    mode: "FM",
+    callsign: "ARISS",
+    status: "Active",
+    notes: "67 Hz CTCSS. See ARISS status for latest operational updates."
+  },
+  {
+    norad: null,
+    aliases: ["PO-101", "DIWATA-2"],
+    uplinkMhz: 437.5,
+    downlinkMhz: 145.9,
+    mode: "FM",
+    callsign: null,
+    status: "Uncertain",
+    notes: "141.3 Hz CTCSS. Reported as failing; FM transponder often activated by schedule."
+  },
+  {
+    norad: null,
+    aliases: ["QMR-KWT-2", "RS95S"],
+    uplinkMhz: 145.92,
+    downlinkMhz: 436.95,
+    mode: "FM / SSTV",
+    callsign: null,
+    status: "Testing",
+    notes: "67 Hz CTCSS. During testing; may transmit SSTV images."
+  },
+  {
+    norad: null,
+    aliases: ["SO-50", "SAUDISAT-1C"],
+    uplinkMhz: 145.85,
+    downlinkMhz: 436.795,
+    mode: "FM",
+    callsign: null,
+    status: "Active",
+    notes: "67 Hz CTCSS. Has 10-minute timer. Arm with 2-second carrier and 74.4 Hz tone."
+  },
+  {
+    norad: null,
+    aliases: ["SO-125", "HADES-ICM"],
+    uplinkMhz: 145.875,
+    downlinkMhz: 436.666,
+    mode: "FM",
+    callsign: null,
+    status: "Active",
+    notes: null
+  }
+];
+
+const AMATEUR_SELECTED_ALIASES = [
+  "AO-91",
+  "RADFXSAT",
+  "FOX-1B",
+  "AO-123",
+  "ASRTU-1",
+  "CAS-3H",
+  "LILACSAT-2",
+  "IO-86",
+  "LAPAN-A2",
+  "ISS",
+  "PO-101",
+  "DIWATA-2",
+  "QMR-KWT-2",
+  "RS95S",
+  "SO-50",
+  "SAUDISAT-1C",
+  "SO-125",
+  "HADES-ICM"
+];
+
+function isAmateurSelectedName(name, noradId = null) {
+  if (String(noradId || "").trim() === "25544") {
+    return true;
+  }
+  const rawUpper = String(name || "").toUpperCase();
+  if (/\bISS\b/.test(rawUpper)) {
+    return true;
+  }
+  const normalized = normalizeRadioName(name);
+  if (!normalized) {
+    return false;
+  }
+  return AMATEUR_SELECTED_ALIASES.some((alias) => {
+    if (String(alias).toUpperCase() === "ISS") {
+      return false;
+    }
+    const aliasKey = normalizeRadioName(alias);
+    return aliasKey && normalized.includes(aliasKey);
+  });
+}
+
 const TRACKED_FILTER_CONFIG = {
   key: "tracked",
   label: "Tracked",
   color: "#94a3b8"
+};
+
+const AMATEUR_SELECTED_FILTER_CONFIG = {
+  key: "amateur_selected",
+  label: "Amateur Radio Selected",
+  color: "#22c55e"
 };
 
 const CATEGORY_CONFIG = [
@@ -86,7 +227,7 @@ const CATEGORY_CONFIG = [
     maxItems: 350
   }
 ];
-const FILTER_CONFIG = [TRACKED_FILTER_CONFIG, ...CATEGORY_CONFIG];
+const FILTER_CONFIG = [TRACKED_FILTER_CONFIG, AMATEUR_SELECTED_FILTER_CONFIG, ...CATEGORY_CONFIG];
 const USE_MOCK_DATA = false;
 
 const INITIAL_MAP_CENTER = [15, 0];
@@ -224,6 +365,8 @@ let speed = Number(speedSelectEl.value);
 let playing = true;
 let lastTick = Date.now();
 let locationCandidates = [];
+let satSearchCandidates = [];
+let satSearchActiveIndex = -1;
 let satComboSuggestCandidates = [];
 let satComboSuggestActiveIndex = -1;
 let locationSuggestCandidates = [];
@@ -829,25 +972,41 @@ function fmtFreq(hzLow, hzHigh) {
   return `${(single / 1e6).toFixed(3)} MHz`;
 }
 
+function stripDiacritics(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeFuzzyToken(value) {
+  return stripDiacritics(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "");
+}
+
 function scoreSearchMatch(sat, queryUpper) {
   const nameUpper = sat.name.toUpperCase();
   const norad = String(sat.noradId || "");
-  if (norad === queryUpper) {
+  const queryNorm = normalizeFuzzyToken(queryUpper);
+  const nameNorm = normalizeFuzzyToken(nameUpper);
+  const noradNorm = normalizeFuzzyToken(norad);
+
+  if (norad === queryUpper || (queryNorm && noradNorm === queryNorm)) {
     return 0;
   }
-  if (norad.startsWith(queryUpper)) {
+  if (norad.startsWith(queryUpper) || (queryNorm && noradNorm.startsWith(queryNorm))) {
     return 1;
   }
-  if (nameUpper === queryUpper) {
+  if (nameUpper === queryUpper || (queryNorm && nameNorm === queryNorm)) {
     return 2;
   }
-  if (nameUpper.startsWith(queryUpper)) {
+  if (nameUpper.startsWith(queryUpper) || (queryNorm && nameNorm.startsWith(queryNorm))) {
     return 3;
   }
-  if (norad.includes(queryUpper)) {
+  if (norad.includes(queryUpper) || (queryNorm && noradNorm.includes(queryNorm))) {
     return 4;
   }
-  if (nameUpper.includes(queryUpper)) {
+  if (nameUpper.includes(queryUpper) || (queryNorm && nameNorm.includes(queryNorm))) {
     return 5;
   }
   return 99;
@@ -873,6 +1032,8 @@ function findSatelliteSearchMatches(query) {
 }
 
 function clearSatelliteSearchSuggestions() {
+  satSearchCandidates = [];
+  satSearchActiveIndex = -1;
   if (!satSearchSuggestionsEl) {
     return;
   }
@@ -880,30 +1041,73 @@ function clearSatelliteSearchSuggestions() {
   satSearchSuggestionsEl.classList.remove("show");
 }
 
+function setSatSearchActiveIndex(index) {
+  if (!satSearchSuggestionsEl || !satSearchCandidates.length) {
+    satSearchActiveIndex = -1;
+    return;
+  }
+  const count = satSearchCandidates.length;
+  const normalized = ((Number(index) % count) + count) % count;
+  satSearchActiveIndex = normalized;
+
+  const rows = satSearchSuggestionsEl.querySelectorAll(".sat-suggest-item");
+  rows.forEach((row, idx) => {
+    const active = idx === normalized;
+    row.classList.toggle("active", active);
+    if (active) {
+      row.scrollIntoView({ block: "nearest" });
+    }
+  });
+}
+
+function moveSatSearchActive(delta) {
+  if (!satSearchCandidates.length) {
+    return;
+  }
+  if (satSearchActiveIndex < 0) {
+    setSatSearchActiveIndex(delta >= 0 ? 0 : satSearchCandidates.length - 1);
+    return;
+  }
+  setSatSearchActiveIndex(satSearchActiveIndex + delta);
+}
+
+function getActiveSatSearchSuggestion() {
+  if (!satSearchCandidates.length) {
+    return null;
+  }
+  if (satSearchActiveIndex >= 0 && satSearchActiveIndex < satSearchCandidates.length) {
+    return satSearchCandidates[satSearchActiveIndex];
+  }
+  return satSearchCandidates[0] || null;
+}
+
 function renderSatelliteSearchSuggestions(items) {
+  satSearchCandidates = Array.isArray(items) ? items : [];
+  satSearchActiveIndex = -1;
   if (!satSearchSuggestionsEl) {
     return;
   }
 
   satSearchSuggestionsEl.innerHTML = "";
-  if (!items.length) {
+  if (!satSearchCandidates.length) {
     satSearchSuggestionsEl.classList.remove("show");
     return;
   }
 
-  items.forEach((sat, idx) => {
+  satSearchCandidates.forEach((sat, idx) => {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "sat-suggest-item";
-    if (idx === 0) {
-      row.classList.add("active");
-    }
     row.innerHTML = `<span>${escapeHtml(sat.name)}</span><span class="sat-suggest-norad">#${escapeHtml(sat.noradId || "N/A")}</span>`;
+    row.addEventListener("mouseenter", () => {
+      setSatSearchActiveIndex(idx);
+    });
     row.addEventListener("click", () => applySatelliteSearchSelection(sat));
     satSearchSuggestionsEl.appendChild(row);
   });
 
   satSearchSuggestionsEl.classList.add("show");
+  setSatSearchActiveIndex(0);
 }
 
 function applySatelliteSearchSelection(sat) {
@@ -931,6 +1135,10 @@ function satDisplayLabel(sat) {
   return `${sat.name} (${sat.noradId || "N/A"})`;
 }
 
+function passSearchSatellites() {
+  return satellites.slice().sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function resolvePassSatelliteIdFromInput() {
   const query = String(satComboInputEl?.value || "").trim();
   const pinnedSatId = String(satComboInputEl?.dataset?.selectedSatId || "");
@@ -938,7 +1146,7 @@ function resolvePassSatelliteIdFromInput() {
     return "";
   }
 
-  const active = visibleSatellites();
+  const active = passSearchSatellites();
   if (pinnedSatId && active.some((sat) => sat.id === pinnedSatId)) {
     return pinnedSatId;
   }
@@ -993,7 +1201,7 @@ function clearSatComboSuggestions() {
 }
 
 function findPassSatelliteMatches(query, limit = 16) {
-  const active = visibleSatellites().slice().sort((a, b) => a.name.localeCompare(b.name));
+  const active = passSearchSatellites();
   const q = String(query || "").trim();
   if (!q) {
     return active.slice(0, limit);
@@ -1356,6 +1564,56 @@ function localTypeHint(label, mode) {
   return "unknown";
 }
 
+function normalizeRadioName(value) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "");
+}
+
+function manualRadioRowsForSatellite(sat) {
+  if (!sat) {
+    return [];
+  }
+  const norad = Number(sat.noradId);
+  const normalizedName = normalizeRadioName(sat.name);
+  const mhzToHz = (mhz) => {
+    const n = Number(mhz);
+    if (!Number.isFinite(n)) {
+      return { low: null, high: null, unit: "Hz" };
+    }
+    const hz = Math.round(n * 1e6);
+    return { low: hz, high: hz, unit: "Hz" };
+  };
+
+  return MANUAL_RADIO_OVERRIDES
+    .filter((item) => {
+      if (Number.isFinite(Number(item.norad)) && Number(item.norad) === norad) {
+        return true;
+      }
+      const aliases = Array.isArray(item.aliases) ? item.aliases : [];
+      return aliases.some((alias) => {
+        const key = normalizeRadioName(alias);
+        return key && normalizedName.includes(key);
+      });
+    })
+    .map((item, idx) => {
+      const aliasLabel = Array.isArray(item.aliases) ? item.aliases[0] : sat.name;
+      return {
+        id: `manual-radio-${sat.noradId || sat.id || "sat"}-${idx}`,
+        source: "MANUAL",
+        label: `${aliasLabel} (manual)`,
+        typeHint: localTypeHint(aliasLabel, item.mode || ""),
+        uplink: mhzToHz(item.uplinkMhz),
+        downlink: mhzToHz(item.downlinkMhz),
+        beacon: { low: null, high: null, unit: "Hz" },
+        mode: item.mode || "N/A",
+        callsign: item.callsign || null,
+        status: item.status || "Unknown",
+        notes: item.notes || null
+      };
+    });
+}
+
 async function ensureLocalAmsatCsvRadioIndex() {
   if (amsatCsvRadioIndex) {
     return amsatCsvRadioIndex;
@@ -1535,23 +1793,26 @@ async function fetchSatInfo(sat) {
 
   const satcat = asArray(satcatRaw)[0] || null;
   const localRows = localCsvIndex?.get(String(noradId)) || [];
+  const manualRows = manualRadioRowsForSatellite(sat);
+  const extraRows = [...localRows, ...manualRows];
   let mergedRadio = radio || null;
   if (mergedRadio && Array.isArray(mergedRadio.transmitters)) {
-    const mergedTransmitters = dedupeRadioTransmitters([...mergedRadio.transmitters, ...localRows]);
+    const mergedTransmitters = dedupeRadioTransmitters([...mergedRadio.transmitters, ...extraRows]);
     mergedRadio = {
       ...mergedRadio,
       source: {
         ...(mergedRadio.source || {}),
-        amsatCsv: Boolean((mergedRadio.source && mergedRadio.source.amsatCsv) || localRows.length)
+        amsatCsv: Boolean((mergedRadio.source && mergedRadio.source.amsatCsv) || localRows.length),
+        manual: Boolean((mergedRadio.source && mergedRadio.source.manual) || manualRows.length)
       },
       transmitters: mergedTransmitters
     };
-  } else if (localRows.length) {
+  } else if (extraRows.length) {
     mergedRadio = {
       norad: Number(noradId),
       satName: sat?.name || `NORAD ${noradId}`,
-      source: { satnogs: false, amsat: false, amsatCsv: true },
-      transmitters: localRows,
+      source: { satnogs: false, amsat: false, amsatCsv: Boolean(localRows.length), manual: Boolean(manualRows.length) },
+      transmitters: extraRows,
       status: { provider: "none", lastReportTime: null, lastReport: null, recentReportsCount: 0 },
       fetchedAt: new Date().toISOString()
     };
@@ -1611,6 +1872,7 @@ function renderSatInfo(sat, metadata) {
         const label = tx.label || "Transmitter";
         const sourceTag = tx.source || (radioPayload?.source?.satnogs ? "SatNOGS" : "Unknown");
         const typeHint = tx.typeHint || "unknown";
+        const notes = tx.notes || "N/A";
 
         return `
           <div class="tx-card">
@@ -1623,6 +1885,7 @@ function renderSatInfo(sat, metadata) {
             <div class="tx-row"><span>Callsign</span><span>${escapeHtml(callsign)}</span></div>
             <div class="tx-row"><span>Mode</span><span>${escapeHtml(mode)}</span></div>
             <div class="tx-row"><span>Status</span><span>${escapeHtml(String(status))}</span></div>
+            <div class="tx-row"><span>Notes</span><span>${escapeHtml(notes)}</span></div>
           </div>
         `;
       })
@@ -2025,6 +2288,13 @@ function writeSatelliteSnapshot(items) {
   }
 }
 
+function normalizeLegacySatelliteCategory(category, noradId) {
+  if (category !== "amateur_selected") {
+    return category;
+  }
+  return String(noradId || "").trim() === "25544" ? "iss" : "amateur";
+}
+
 function readSatelliteSnapshot() {
   try {
     const raw = localStorage.getItem(SAT_SNAPSHOT_KEY);
@@ -2038,10 +2308,11 @@ function readSatelliteSnapshot() {
       if (!row || !row.id || !row.category || !row.name || !row.noradId) {
         return;
       }
+      const category = normalizeLegacySatelliteCategory(row.category, row.noradId);
       if (row.line1 && row.line2) {
         out.push({
           id: row.id,
-          category: row.category,
+          category,
           color: row.color,
           name: row.name,
           line1: row.line1,
@@ -2054,7 +2325,7 @@ function readSatelliteSnapshot() {
       if (row.mockOrbit) {
         out.push({
           id: row.id,
-          category: row.category,
+          category,
           color: row.color,
           name: row.name,
           noradId: row.noradId,
@@ -2224,6 +2495,7 @@ function buildFilterControls() {
     countsByCategory.set(sat.category, (countsByCategory.get(sat.category) || 0) + 1);
   });
   const trackedCount = satellites.filter((sat) => isTrackedSatellite(sat.id)).length;
+  const amateurSelectedCount = satellites.filter((sat) => isAmateurSelectedName(sat.name, sat.noradId)).length;
 
   const allRow = document.createElement("div");
   allRow.className = "filter-item";
@@ -2287,7 +2559,12 @@ function buildFilterControls() {
 
     const count = document.createElement("span");
     count.className = "filter-count";
-    count.textContent = `(${config.key === TRACKED_FILTER_CONFIG.key ? trackedCount : countsByCategory.get(config.key) || 0})`;
+    const countValue = config.key === TRACKED_FILTER_CONFIG.key
+      ? trackedCount
+      : config.key === AMATEUR_SELECTED_FILTER_CONFIG.key
+        ? amateurSelectedCount
+        : countsByCategory.get(config.key) || 0;
+    count.textContent = `(${countValue})`;
 
     labelWrap.appendChild(bubble);
     labelWrap.appendChild(text);
@@ -2470,16 +2747,22 @@ function renderSelectedOrbitPath(force = false) {
   orbitLayer.clearLayers();
   splitTrackOnDateLine(pastPoints).forEach((segment) => {
     addWrappedPolyline(orbitLayer, segment, {
-      color: ACCENT_GREEN,
+      color: sat.color || ACCENT_GREEN,
       weight: 1,
-      opacity: 0.15
+      opacity: 0.15,
+      dashArray: "1 10",
+      lineCap: "round",
+      lineJoin: "round"
     });
   });
   splitTrackOnDateLine(futurePoints).forEach((segment) => {
     addWrappedPolyline(orbitLayer, segment, {
-      color: ACCENT_GREEN,
+      color: sat.color || ACCENT_GREEN,
       weight: 1,
-      opacity: 0.95
+      opacity: 0.95,
+      dashArray: "1 10",
+      lineCap: "round",
+      lineJoin: "round"
     });
   });
 }
@@ -2675,7 +2958,8 @@ function visibleSatellites() {
     const isSearchFocused = Boolean(selectedSearchSatId && sat.id === selectedSearchSatId);
     const categoryVisible =
       selectedCategories.has(sat.category) ||
-      (selectedCategories.has(TRACKED_FILTER_CONFIG.key) && isTrackedSatellite(sat.id));
+      (selectedCategories.has(TRACKED_FILTER_CONFIG.key) && isTrackedSatellite(sat.id)) ||
+      (selectedCategories.has(AMATEUR_SELECTED_FILTER_CONFIG.key) && isAmateurSelectedName(sat.name, sat.noradId));
     if (!categoryVisible && !isSearchFocused) {
       return false;
     }
@@ -2707,9 +2991,7 @@ function redrawMarkers(forceRebuild = false) {
   const active = visibleSatellites();
   const observerForLosDim = allLosEnabled && !losOnlyEnabled ? observerGd() : null;
 
-  satCountEl.textContent = selectedSearchSatId
-    ? `${active.length} visible (focused satellite highlighted${maxAltitudeEnabled ? `, <= ${maxSatelliteAltitudeKm} km` : ""})`
-    : `${active.length} visible from selected categories${maxAltitudeEnabled ? ` (<= ${maxSatelliteAltitudeKm} km)` : ""}`;
+  satCountEl.textContent = `${active.length} visible from selected categories${maxAltitudeEnabled ? ` (<= ${maxSatelliteAltitudeKm} km)` : ""}`;
 
   if (forceRebuild) {
     markerLayer.clearLayers();
@@ -2732,12 +3014,11 @@ function redrawMarkers(forceRebuild = false) {
       outsideLos = elevationDeg < 0;
     }
 
-    const dimmedBySearchFocus = Boolean(selectedSearchSatId && sat.id !== selectedSearchSatId);
-    let satFillOpacity = dimmedBySearchFocus ? 0.225 : 0.9;
+    let satFillOpacity = 0.9;
     if (outsideLos) {
       satFillOpacity = Math.min(satFillOpacity, 0.15);
     }
-    const satHitOpacity = dimmedBySearchFocus ? 0.25 : 0;
+    const satHitOpacity = 0;
 
     let markerSet = markers.get(sat.id);
     if (!markerSet) {
@@ -2818,7 +3099,7 @@ function redrawMarkers(forceRebuild = false) {
 }
 
 function refreshSatelliteSelect() {
-  const active = visibleSatellites();
+  const active = passSearchSatellites();
 
   if (selectedPassSatId && !active.some((sat) => sat.id === selectedPassSatId)) {
     setPassSatelliteInputById("");
@@ -3232,32 +3513,85 @@ async function fetchLocationSuggestions(queryText) {
     return [];
   }
 
-  const params = new URLSearchParams({
-    format: "jsonv2",
-    limit: "6",
-    addressdetails: "1",
-    q
-  });
-  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
-  if (!response.ok) {
-    return [];
+  const runSearch = async (extra = {}) => {
+    const params = new URLSearchParams({
+      format: "jsonv2",
+      limit: "20",
+      addressdetails: "1",
+      q
+    });
+    Object.entries(extra).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim()) {
+        params.set(key, String(value));
+      }
+    });
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+    if (!response.ok) {
+      return [];
+    }
+    return response.json();
+  };
+
+  let primaryRows = [];
+  try {
+    primaryRows = await runSearch();
+  } catch (error) {
+    primaryRows = [];
   }
-  const rows = await response.json();
-  return rows.map((row) => normalizeLocationItem({
-    lat: row.lat,
-    lon: row.lon,
-    name: row.name || row.display_name,
-    state: row.address?.state || row.address?.county || "",
-    country: row.address?.country || "",
-    city: row.address?.city || "",
-    town: row.address?.town || "",
-    village: row.address?.village || "",
-    municipality: row.address?.municipality || "",
-    hamlet: row.address?.hamlet || "",
-    suburb: row.address?.suburb || "",
-    county: row.address?.county || "",
-    state_district: row.address?.state_district || ""
-  }));
+
+  let ltRows = [];
+  try {
+    // Lithuanian fallback helps with names typed without diacritics.
+    ltRows = await runSearch({ countrycodes: "lt" });
+  } catch (error) {
+    ltRows = [];
+  }
+
+  const merged = mergeUniqueLocations(
+    [...primaryRows, ...ltRows].map((row) => normalizeLocationItem({
+      lat: row.lat,
+      lon: row.lon,
+      name: row.name || row.display_name,
+      state: row.address?.state || row.address?.county || "",
+      country: row.address?.country || "",
+      city: row.address?.city || "",
+      town: row.address?.town || "",
+      village: row.address?.village || "",
+      municipality: row.address?.municipality || "",
+      hamlet: row.address?.hamlet || "",
+      suburb: row.address?.suburb || "",
+      county: row.address?.county || "",
+      state_district: row.address?.state_district || ""
+    }))
+  );
+
+  const queryNorm = normalizeFuzzyToken(q);
+  return merged
+    .map((item) => {
+      const labelNorm = normalizeFuzzyToken(formatLocationLabel(item));
+      const metaNorm = normalizeFuzzyToken(formatLocationMeta(item));
+      let score = 99;
+      if (labelNorm === queryNorm) {
+        score = 0;
+      } else if (labelNorm.startsWith(queryNorm)) {
+        score = 1;
+      } else if (labelNorm.includes(queryNorm)) {
+        score = 2;
+      } else if (metaNorm.startsWith(queryNorm)) {
+        score = 3;
+      } else if (metaNorm.includes(queryNorm)) {
+        score = 4;
+      }
+      return { item, score };
+    })
+    .sort((a, b) => {
+      if (a.score !== b.score) {
+        return a.score - b.score;
+      }
+      return formatLocationLabel(a.item).localeCompare(formatLocationLabel(b.item));
+    })
+    .map((row) => row.item)
+    .slice(0, 12);
 }
 
 function renderLocationSuggestions(items) {
@@ -3290,7 +3624,7 @@ function renderLocationSuggestions(items) {
       row.appendChild(meta);
     }
     row.addEventListener("mouseenter", () => {
-      setLocationSuggestActiveIndex(idx);
+      setLocationSuggestActiveIndex(idx, { preview: false });
     });
     row.addEventListener("click", () => {
       locationPreviewActive = false;
@@ -3300,10 +3634,11 @@ function renderLocationSuggestions(items) {
     locationSuggestBoxEl.appendChild(row);
   });
   locationSuggestBoxEl.classList.add("show");
-  setLocationSuggestActiveIndex(0);
+  setLocationSuggestActiveIndex(0, { preview: false });
 }
 
-function setLocationSuggestActiveIndex(index) {
+function setLocationSuggestActiveIndex(index, options = {}) {
+  const { preview = false } = options;
   if (!locationSuggestBoxEl || !locationSuggestCandidates.length) {
     locationSuggestActiveIndex = -1;
     return;
@@ -3322,7 +3657,7 @@ function setLocationSuggestActiveIndex(index) {
   });
 
   const activeCandidate = locationSuggestCandidates[normalized];
-  if (activeCandidate) {
+  if (activeCandidate && preview) {
     locationPreviewActive = true;
     applyLocationCandidate(activeCandidate, { skipAltitudeFetch: true, skipPassRender: true });
   }
@@ -3333,10 +3668,10 @@ function moveLocationSuggestActive(delta) {
     return;
   }
   if (locationSuggestActiveIndex < 0) {
-    setLocationSuggestActiveIndex(delta >= 0 ? 0 : locationSuggestCandidates.length - 1);
+    setLocationSuggestActiveIndex(delta >= 0 ? 0 : locationSuggestCandidates.length - 1, { preview: true });
     return;
   }
-  setLocationSuggestActiveIndex(locationSuggestActiveIndex + delta);
+  setLocationSuggestActiveIndex(locationSuggestActiveIndex + delta, { preview: true });
 }
 
 function getActiveLocationSuggestion() {
@@ -3354,7 +3689,39 @@ function findSuggestedLocationByLabel(label) {
   if (!key) {
     return null;
   }
-  return locationSuggestCandidates.find((item) => formatLocationLabel(item).toLowerCase() === key) || null;
+  const exact = locationSuggestCandidates.find((item) => formatLocationLabel(item).toLowerCase() === key);
+  if (exact) {
+    return exact;
+  }
+
+  const keyNorm = normalizeFuzzyToken(key);
+  if (!keyNorm) {
+    return null;
+  }
+
+  const scored = locationSuggestCandidates
+    .map((item) => {
+      const labelText = formatLocationLabel(item);
+      const labelNorm = normalizeFuzzyToken(labelText);
+      let score = 99;
+      if (labelNorm === keyNorm) {
+        score = 0;
+      } else if (labelNorm.startsWith(keyNorm)) {
+        score = 1;
+      } else if (labelNorm.includes(keyNorm)) {
+        score = 2;
+      }
+      return { item, score, labelText };
+    })
+    .filter((row) => row.score < 99)
+    .sort((a, b) => {
+      if (a.score !== b.score) {
+        return a.score - b.score;
+      }
+      return a.labelText.localeCompare(b.labelText);
+    });
+
+  return scored.length ? scored[0].item : null;
 }
 
 async function fetchNearbySettlements(lat, lon, radiusKm = 10) {
@@ -4199,6 +4566,11 @@ function renderPasses(overrideSatId = null, options = {}) {
   if (!preview) {
     setStatus(`Showing ${passes.length} passes for ${sat.name} in ${statusRangeLabel}.`);
   }
+
+  // Keep pass visuals above selected fly-path for cleaner overlap.
+  if (typeof passLayer.bringToFront === "function") {
+    passLayer.bringToFront();
+  }
 }
 
 function animate() {
@@ -4697,10 +5069,30 @@ if (satSearchInputEl) {
   });
 
   satSearchInputEl.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      moveSatSearchActive(1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      moveSatSearchActive(-1);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      clearSatelliteSearchSuggestions();
+      return;
+    }
     if (event.key !== "Enter") {
       return;
     }
     event.preventDefault();
+    const activeSuggestion = getActiveSatSearchSuggestion();
+    if (activeSuggestion) {
+      applySatelliteSearchSelection(activeSuggestion);
+      return;
+    }
     const matches = findSatelliteSearchMatches(satSearchInputEl.value);
     if (matches.length) {
       applySatelliteSearchSelection(matches[0]);
@@ -4714,6 +5106,18 @@ if (satSearchInputEl) {
     }
     renderSatelliteSearchSuggestions(findSatelliteSearchMatches(query));
   });
+
+  const onSatSearchWheel = (event) => {
+    if (!satSearchCandidates.length) {
+      return;
+    }
+    event.preventDefault();
+    moveSatSearchActive(event.deltaY >= 0 ? 1 : -1);
+  };
+  satSearchInputEl.addEventListener("wheel", onSatSearchWheel, { passive: false });
+  if (satSearchSuggestionsEl) {
+    satSearchSuggestionsEl.addEventListener("wheel", onSatSearchWheel, { passive: false });
+  }
 }
 
 if (timeFormatSelectEl) {
