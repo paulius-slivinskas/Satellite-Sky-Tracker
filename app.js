@@ -1932,9 +1932,27 @@ async function ensureLocalAmsatCsvRadioIndex() {
   amsatCsvRadioLoadPromise = (async () => {
     const map = new Map();
     try {
-      const response = await fetch("/amsat-all-frequencies.csv", { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      const csvUrls = [
+        "/amsat-all-frequencies.csv",
+        "./amsat-all-frequencies.csv",
+        "amsat-all-frequencies.csv"
+      ];
+      let response = null;
+      let lastError = null;
+      for (const url of csvUrls) {
+        try {
+          const candidate = await fetch(url, { cache: "no-store" });
+          if (candidate.ok) {
+            response = candidate;
+            break;
+          }
+          lastError = new Error(`HTTP ${candidate.status}`);
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (!response) {
+        throw lastError || new Error("CSV fetch failed");
       }
       const text = await response.text();
       const lines = text.split(/\r?\n/).filter((line) => line.trim().length);
@@ -1981,11 +1999,15 @@ async function ensureLocalAmsatCsvRadioIndex() {
         map.set(norad, arr);
       }
 
+      const wasUnavailable = !amsatCsvRadioIndex;
       amsatCsvRadioIndex = map;
       amsatCsvNextRetryAt = 0;
       amsatCsvRetryDelayMs = 5000;
       amsatCsvLastError = "";
       clearStatusToast("amsat-csv-load");
+      if (wasUnavailable) {
+        satInfoCache.clear();
+      }
       return map;
     } catch (error) {
       const retryMs = amsatCsvRetryDelayMs;
@@ -2134,7 +2156,10 @@ async function fetchSatInfo(sat) {
   }
 
   const payload = { satcat, radio: mergedRadio };
-  satInfoCache.set(sat.id, payload);
+  // Do not lock stale sat-info cache while CSV index is still unavailable.
+  if (amsatCsvRadioIndex) {
+    satInfoCache.set(sat.id, payload);
+  }
   return payload;
 }
 
