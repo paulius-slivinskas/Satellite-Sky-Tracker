@@ -1343,6 +1343,10 @@ input::placeholder {
   body.sat-info-open #map .leaflet-bottom.leaflet-right {
     bottom: calc(50dvh + var(--overlay-gap));
   }
+
+  body:not(.sidebar-collapsed) #map .leaflet-control-zoom {
+    display: none;
+  }
 }
 
 @keyframes mobileSheetIn {
