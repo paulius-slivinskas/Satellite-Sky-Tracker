@@ -417,6 +417,7 @@ const OBSERVER_LOCATION_KEY = "satapp_observer_location";
 const SAT_SNAPSHOT_KEY = "satapp_satellite_snapshot_v1";
 const CATEGORY_FILTERS_KEY = "satapp_category_filters_enabled";
 const TIME_FORMAT_KEY = "satapp_time_format";
+const SHARE_VIEW_PARAM = "view";
 const WORLD_COPY_SHIFTS = [-360, 0, 360];
 const TIMELINE_JOG_STEP_MS = 600;
 const TIMELINE_JOG_PX_PER_STEP = 8;
@@ -907,6 +908,299 @@ function syncMaxAltitudeControl() {
     maxAltitudeInputEl.value = "";
     maxAltitudeTextEl.hidden = false;
     maxAltitudeTextEl.textContent = "Set max altitude";
+  }
+}
+
+function encodeBase64UrlFromUtf8(text) {
+  try {
+    const bytes = new TextEncoder().encode(String(text || ""));
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  } catch (error) {
+    return "";
+  }
+}
+
+function decodeBase64UrlToUtf8(input) {
+  const raw = String(input || "").trim();
+  if (!raw) {
+    return "";
+  }
+  const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
+  const mod = padded.length % 4;
+  const normalized = mod ? padded + "=".repeat(4 - mod) : padded;
+  const binary = atob(normalized);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function activeTabName() {
+  const active = document.querySelector(".tab-btn.active");
+  return active?.dataset?.tab || "filters";
+}
+
+function satById(satId) {
+  const key = String(satId || "");
+  return satellites.find((sat) => sat.id === key) || null;
+}
+
+function satByNorad(norad) {
+  const key = String(norad || "").trim();
+  if (!key) {
+    return null;
+  }
+  return satellites.find((sat) => String(sat.noradId || "").trim() === key) || null;
+}
+
+function buildShareViewState(preferredSatId = null) {
+  const selectedSat =
+    satById(preferredSatId) ||
+    satById(selectedSatId) ||
+    null;
+  const selectedPassSat = satById(selectedPassSatId);
+  const selectedSearchSat = satById(selectedSearchSatId);
+  const coords = observerCoords();
+  const mapCenter = map.getCenter();
+  const speedMultiplier = currentSpeedMultiplier();
+  const normalizedSpeed = Number.isFinite(speedMultiplier) && speedMultiplier > 0 ? speedMultiplier : 1;
+
+  return {
+    version: 1,
+    tab: activeTabName(),
+    categories: Array.from(selectedCategories),
+    map: {
+      lat: Number(mapCenter.lat.toFixed(6)),
+      lon: Number(mapCenter.lng.toFixed(6)),
+      zoom: map.getZoom()
+    },
+    observer: coords
+      ? {
+          lat: Number(coords.lat.toFixed(6)),
+          lon: Number(coords.lon.toFixed(6)),
+          alt: Number.isFinite(Number(observerAltEl?.value)) ? Math.round(Number(observerAltEl.value)) : null,
+          name: String(locationQueryEl?.value || "").trim()
+        }
+      : null,
+    filters: {
+      allLosEnabled: Boolean(allLosEnabled),
+      losOnlyEnabled: Boolean(losOnlyEnabled),
+      showPassesOnMap: Boolean(showPassesOnMap),
+      maxAltitudeEnabled: Boolean(maxAltitudeEnabled),
+      maxAltitudeKm: Number.isFinite(Number(maxSatelliteAltitudeKm)) ? Math.round(Number(maxSatelliteAltitudeKm)) : 5000
+    },
+    time: {
+      simulatedTimeMs: Math.round(simulatedTimeMs),
+      speed: normalizedSpeed,
+      playing: Boolean(playing),
+      format: timeFormat === "12h" ? "12h" : "24h"
+    },
+    passes: {
+      range: String(passesDaysSelectEl?.value || "1"),
+      selectedNorad: selectedPassSat?.noradId ? String(selectedPassSat.noradId) : null
+    },
+    selected: {
+      norad: selectedSat?.noradId ? String(selectedSat.noradId) : null,
+      searchNorad: selectedSearchSat?.noradId ? String(selectedSearchSat.noradId) : null
+    }
+  };
+}
+
+function buildShareViewUrl(preferredSatId = null) {
+  const payload = buildShareViewState(preferredSatId);
+  const encoded = encodeBase64UrlFromUtf8(JSON.stringify(payload));
+  const url = new URL(window.location.href);
+  if (!encoded) {
+    url.searchParams.delete(SHARE_VIEW_PARAM);
+  } else {
+    url.searchParams.set(SHARE_VIEW_PARAM, encoded);
+  }
+  return url.toString();
+}
+
+function readShareViewStateFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    const raw = url.searchParams.get(SHARE_VIEW_PARAM);
+    if (!raw) {
+      return null;
+    }
+    const decoded = decodeBase64UrlToUtf8(raw);
+    if (!decoded) {
+      return null;
+    }
+    const parsed = JSON.parse(decoded);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    return parsed;
+  } catch (error) {
+    return null;
+  }
+}
+
+function applySharedViewStateEarly(state) {
+  if (!state || typeof state !== "object") {
+    return;
+  }
+
+  if (Array.isArray(state.categories)) {
+    const allowed = new Set(FILTER_CONFIG.map((cfg) => cfg.key));
+    const selected = state.categories
+      .map((key) => String(key))
+      .filter((key) => allowed.has(key));
+    if (selected.length) {
+      selectedCategories = new Set(selected);
+      writeSelectedCategories();
+    }
+  }
+
+  const filters = state.filters || {};
+  if (typeof filters.allLosEnabled === "boolean") {
+    allLosEnabled = filters.allLosEnabled;
+    writeAllLosEnabled(allLosEnabled);
+  }
+  if (typeof filters.losOnlyEnabled === "boolean") {
+    losOnlyEnabled = filters.losOnlyEnabled;
+    writeLosOnlyEnabled(losOnlyEnabled);
+  }
+  if (typeof filters.showPassesOnMap === "boolean") {
+    showPassesOnMap = filters.showPassesOnMap;
+    writeShowPassesOnMap(showPassesOnMap);
+  }
+  if (typeof filters.maxAltitudeEnabled === "boolean") {
+    maxAltitudeEnabled = filters.maxAltitudeEnabled;
+    writeMaxAltitudeEnabled(maxAltitudeEnabled);
+  }
+  if (Number.isFinite(Number(filters.maxAltitudeKm)) && Number(filters.maxAltitudeKm) > 0) {
+    maxSatelliteAltitudeKm = Math.round(Number(filters.maxAltitudeKm));
+    writeMaxSatelliteAltitudeKm(maxSatelliteAltitudeKm);
+  }
+
+  const observer = state.observer || null;
+  if (observer && Number.isFinite(Number(observer.lat)) && Number.isFinite(Number(observer.lon))) {
+    observerLatEl.value = Number(observer.lat).toFixed(4);
+    observerLonEl.value = Number(observer.lon).toFixed(4);
+    observerAltEl.value = Number.isFinite(Number(observer.alt)) ? String(Math.round(Number(observer.alt))) : "";
+    if (locationQueryEl) {
+      locationQueryEl.value = String(observer.name || "").trim();
+    }
+    writeStoredObserverLocation();
+  }
+
+  const time = state.time || {};
+  if (Number.isFinite(Number(time.simulatedTimeMs))) {
+    simulatedTimeMs = Math.round(Number(time.simulatedTimeMs));
+  }
+  if (typeof time.playing === "boolean") {
+    playing = time.playing;
+  }
+  if (time.format === "12h" || time.format === "24h") {
+    timeFormat = time.format;
+    writeTimeFormat(timeFormat);
+  }
+  if (Number.isFinite(Number(time.speed)) && Number(time.speed) > 0 && speedSelectEl) {
+    const normalized = String(Number(time.speed));
+    const option = Array.from(speedSelectEl.options).find((opt) => opt.value === normalized);
+    if (option) {
+      speedSelectEl.value = option.value;
+      speed = currentSpeedMultiplier();
+    }
+  }
+
+  const passes = state.passes || {};
+  if (passesDaysSelectEl && passes.range) {
+    const wanted = String(passes.range);
+    const option = Array.from(passesDaysSelectEl.options).find((opt) => opt.value === wanted);
+    if (option) {
+      passesDaysSelectEl.value = option.value;
+    }
+  }
+
+  if (state.tab) {
+    setActiveTab(String(state.tab));
+  }
+
+  const mapState = state.map || {};
+  if (
+    Number.isFinite(Number(mapState.lat)) &&
+    Number.isFinite(Number(mapState.lon)) &&
+    Number.isFinite(Number(mapState.zoom))
+  ) {
+    map.setView([Number(mapState.lat), Number(mapState.lon)], Number(mapState.zoom), { animate: false });
+  }
+
+  syncMaxAltitudeControl();
+  syncShowPassesToggles();
+  syncTimeFormatControl();
+  if (allLosToggleEl) {
+    allLosToggleEl.checked = allLosEnabled;
+  }
+  if (losOnlyToggleEl) {
+    losOnlyToggleEl.checked = losOnlyEnabled;
+  }
+  updateObserverMarker();
+  updateComputePassesState();
+  updateLocationSummary();
+}
+
+async function applySharedViewStateLate(state) {
+  if (!state || typeof state !== "object") {
+    return;
+  }
+  const selected = state.selected || {};
+  const passes = state.passes || {};
+
+  const searchSat = satByNorad(selected.searchNorad);
+  if (searchSat) {
+    selectedSearchSatId = searchSat.id;
+    if (satSearchInputEl) {
+      satSearchInputEl.value = `${searchSat.name} (${searchSat.noradId || "N/A"})`;
+    }
+  }
+
+  const passSat = satByNorad(passes.selectedNorad);
+  if (passSat) {
+    setPassSatelliteInputById(passSat.id);
+  }
+
+  const selectedSat = satByNorad(selected.norad);
+  if (selectedSat) {
+    await selectSatellite(selectedSat);
+  } else {
+    redrawMarkers(true);
+    renderPasses();
+  }
+}
+
+async function copyTextToClipboard(text) {
+  const payload = String(text || "");
+  if (!payload) {
+    return false;
+  }
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    try {
+      await navigator.clipboard.writeText(payload);
+      return true;
+    } catch (error) {
+      // Fallback below.
+    }
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = payload;
+    area.setAttribute("readonly", "readonly");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(area);
+    return Boolean(copied);
+  } catch (error) {
+    return false;
   }
 }
 
@@ -1906,21 +2200,35 @@ function renderSatInfo(sat, metadata) {
 
   satInfoEl.innerHTML = `
     <div class="sat-info-head">
-      <h3>Satellite Info</h3>
-      <button
-        type="button"
-        class="sat-watch-btn ${isTracked ? "active" : ""}"
-        id="sat-watch-toggle"
-        data-sat-id="${escapeHtml(sat.id)}"
-        aria-pressed="${isTracked ? "true" : "false"}"
-        title="${isTracked ? "Remove from Tracked" : "Add to Tracked"}"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M12 5C6.5 5 2.1 8.3 1 12c1.1 3.7 5.5 7 11 7s9.9-3.3 11-7c-1.1-3.7-5.5-7-11-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/>
-        </svg>
-      </button>
+      <h3>${escapeHtml(sat.name)}</h3>
+      <div class="sat-info-actions">
+        <button
+          type="button"
+          class="sat-share-btn"
+          id="sat-share-copy"
+          data-sat-id="${escapeHtml(sat.id)}"
+          title="Copy share link"
+          aria-label="Copy share link"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M10.59 13.41a1 1 0 0 1 0-1.41l3.59-3.59a3 3 0 0 1 4.24 4.24l-2.12 2.12a3 3 0 0 1-4.24 0 1 1 0 0 1 1.41-1.41 1 1 0 0 0 1.42 0l2.12-2.12a1 1 0 1 0-1.42-1.41l-3.59 3.58a1 1 0 0 1-1.42 0Z"/>
+            <path d="M13.41 10.59a1 1 0 0 1 0 1.41l-3.59 3.59a3 3 0 0 1-4.24-4.24l2.12-2.12a3 3 0 0 1 4.24 0 1 1 0 1 1-1.41 1.41 1 1 0 0 0-1.42 0L7 12.76a1 1 0 1 0 1.42 1.41l3.59-3.58a1 1 0 0 1 1.41 0Z"/>
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="sat-watch-btn ${isTracked ? "active" : ""}"
+          id="sat-watch-toggle"
+          data-sat-id="${escapeHtml(sat.id)}"
+          aria-pressed="${isTracked ? "true" : "false"}"
+          title="${isTracked ? "Remove from Tracked" : "Add to Tracked"}"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 5C6.5 5 2.1 8.3 1 12c1.1 3.7 5.5 7 11 7s9.9-3.3 11-7c-1.1-3.7-5.5-7-11-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/>
+          </svg>
+        </button>
+      </div>
     </div>
-    <p class="sat-name">${escapeHtml(sat.name)}</p>
     <div class="sat-kv-grid">${rowsHtml}</div>
     <h4>Amateur Radio</h4>
     ${txHtml}
@@ -5135,7 +5443,7 @@ if (satComboInputEl) {
 }
 
 if (satInfoEl) {
-  satInfoEl.addEventListener("click", (event) => {
+  satInfoEl.addEventListener("click", async (event) => {
     const target = event.target;
     if (!(target instanceof Element)) {
       return;
@@ -5151,6 +5459,14 @@ if (satInfoEl) {
         renderSatInfo(sat, satInfoCache.get(sat.id) || {});
         setStatus(tracked ? `${sat.name} added to Tracked.` : `${sat.name} removed from Tracked.`);
       }
+      return;
+    }
+    const shareCopyBtn = target.closest("#sat-share-copy");
+    if (shareCopyBtn) {
+      const satId = shareCopyBtn.getAttribute("data-sat-id") || selectedSatId || "";
+      const shareUrl = buildShareViewUrl(satId);
+      const copied = await copyTextToClipboard(shareUrl);
+      setStatus(copied ? "Share link copied." : "Could not copy share link automatically.");
       return;
     }
     if (!target.closest("#sat-info-close")) {
@@ -5310,6 +5626,7 @@ document.addEventListener("click", (event) => {
 });
 
 async function bootstrap() {
+  const sharedViewState = readShareViewStateFromUrl();
   setActiveTab("filters");
   applyVerticalFitConstraints(true);
   simulatedTimeMs = Date.now();
@@ -5342,9 +5659,12 @@ async function bootstrap() {
   if (losOnlyToggleEl) {
     losOnlyToggleEl.checked = losOnlyEnabled;
   }
+  if (sharedViewState) {
+    applySharedViewStateEarly(sharedViewState);
+  }
   syncShowPassesToggles();
   const storedObserver = readStoredObserverLocation();
-  if (storedObserver) {
+  if (storedObserver && !sharedViewState?.observer) {
     observerLatEl.value = storedObserver.lat.toFixed(4);
     observerLonEl.value = storedObserver.lon.toFixed(4);
     observerAltEl.value = storedObserver.alt === null ? "" : String(storedObserver.alt);
@@ -5378,6 +5698,9 @@ async function bootstrap() {
   }
   await loadSatellites({ showLoading: !warmStartSatellites.length });
   redrawMarkers(true);
+  if (sharedViewState) {
+    await applySharedViewStateLate(sharedViewState);
+  }
   updateTimeLabel();
   syncPlayButton();
   passesListEl.innerHTML = "";

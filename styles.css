@@ -962,6 +962,12 @@ input[type="range"]::-moz-range-thumb {
   gap: 0.6rem;
 }
 
+.sat-info-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .sat-watch-btn {
   width: auto;
   margin: 0;
@@ -979,6 +985,29 @@ input[type="range"]::-moz-range-thumb {
   width: 15px;
   height: 15px;
   fill: currentColor;
+}
+
+.sat-share-btn {
+  width: auto;
+  margin: 0;
+  padding: 0.28rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sat-share-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+
+.sat-share-btn:hover {
+  border-color: rgba(255, 255, 255, 0.75);
 }
 
 .sat-watch-btn.active {
