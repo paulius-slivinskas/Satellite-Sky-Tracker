@@ -85,14 +85,33 @@ Example response:
 - Additional CSV radio rows can be loaded via `AMSAT_FREQ_CSV_PATH`.
 - Starlink and active groups are capped for browser performance.
 
-## Latest UX updates
-- Added `Settings` tab with `12-hour / 24-hour` time format selector (stored in localStorage).
-- `Pass Range` now supports `3 upcoming passes` and `5 upcoming passes`.
-- Pass lines use LOS-based windows more consistently.
-- Added map labels for pass start/end and max-elevation moment.
-- Added max-elevation marker with time + elevation (`°`) in a 2-line compact label.
-- Added start/end markers on pass lines with matching style.
-- You can hover passes directly on the map (larger invisible hover hit area).
-- Sidebar pass cards and map pass lines now highlight in sync.
-- Non-focused pass labels are dimmed (start/end kept subtle at 15%).
-- LOS rows are hidden when they match pass start/end times.
+## Release notes
+
+### Original release
+- Interactive world map with live satellite movement from TLE data.
+- Category-based filtering (ISS, Amateur Radio, Starlink, Weather, Military/Active groups).
+- Satellite selection with orbit path rendering.
+- Observer location workflow with pass prediction and pass list.
+- Time simulation controls (play/pause, speed, jog, reset).
+- Satellite info popup with orbital metadata and amateur radio transmitter data.
+
+### Today (2026-02-16)
+- Improved LOS/pass alignment:
+  - Pass windows now use a footprint-consistent LOS boundary check.
+  - Reduced mismatch cases where pass track ended too early relative to LOS footprint.
+- Added shareable deep-link view:
+  - Share action in satellite popup header (chain icon).
+  - Encodes current view state in URL (`?view=...`) and restores on open.
+  - Includes map view, filters, observer, time state, selected satellite, and pass settings.
+  - Fixed selected satellite auto-open when opening a shared link.
+- Satellite info popup UX updates:
+  - Popup header now shows the satellite name directly.
+  - Removed duplicate satellite name row.
+- Mobile/tablet UX updates:
+  - Added responsive sidebar toggle button for tablet/mobile.
+  - Toggle icon states fixed (menu=open action, X=close action) and aligned vertically.
+  - Smartphone sidebar now uses full-height content flow for easier scrolling.
+  - Smartphone satellite info changed to bottom-sheet style (opens from bottom, ~50% height).
+  - Map zoom controls now shift upward when the mobile bottom sheet is open.
+- Notification/marketing cleanup:
+  - Removed “Already loving this tracker” toast and coffee banner/action entirely.

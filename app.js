@@ -323,8 +323,6 @@ const losOnlyToggleEl = document.getElementById("los-only-toggle");
 const showPassesToggleEl = document.getElementById("show-passes-toggle");
 const showPassesTogglePassesEl = document.getElementById("show-passes-toggle-passes");
 const satInfoEl = document.getElementById("sat-info");
-const coffeeBannerEl = document.getElementById("coffee-banner");
-const coffeeBannerBtnEl = document.getElementById("coffee-banner-btn");
 const geoPermissionPopupEl = document.getElementById("geo-permission-popup");
 const geoPermissionBtnEl = document.getElementById("geo-permission-btn");
 const tabButtons = document.querySelectorAll(".tab-btn");
@@ -344,6 +342,7 @@ const providerStatusEl = document.getElementById("provider-status");
 const observerLatEl = document.getElementById("observer-lat");
 const observerLonEl = document.getElementById("observer-lon");
 const observerAltEl = document.getElementById("observer-alt");
+const sidebarToggleEl = document.getElementById("sidebar-toggle");
 const sidebarStackEl = document.querySelector(".sidebar-stack");
 const sidebarMainEl = document.getElementById("sidebar-main");
 const sidebarLocationEl = document.getElementById("sidebar-location");
@@ -465,22 +464,6 @@ function clearStatusToast(key) {
     }
     processStatusQueue();
   }, 1200);
-}
-
-function showCoffeeBannerFor10s() {
-  if (!coffeeBannerEl) {
-    return;
-  }
-  coffeeBannerEl.classList.remove("hidden");
-  coffeeBannerEl.classList.remove("fade-out");
-
-  setTimeout(() => {
-    coffeeBannerEl.classList.add("fade-out");
-    setTimeout(() => {
-      coffeeBannerEl.classList.add("hidden");
-      coffeeBannerEl.classList.remove("fade-out");
-    }, 1200);
-  }, 10000);
 }
 
 function processStatusQueue() {
@@ -1667,6 +1650,7 @@ function setSatInfoVisible(visible) {
     return;
   }
   satInfoEl.classList.toggle("hidden", !visible);
+  document.body.classList.toggle("sat-info-open", Boolean(visible));
 }
 
 function clearActiveSatelliteSelection(clearSearchFocus = false) {
@@ -3589,6 +3573,13 @@ function layoutSidebarSections() {
   sidebarStackEl.classList.toggle("location-only", isOpen);
 }
 
+function setSidebarCollapsed(collapsed) {
+  document.body.classList.toggle("sidebar-collapsed", Boolean(collapsed));
+  if (sidebarToggleEl) {
+    sidebarToggleEl.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  }
+}
+
 function elevationCacheKey(lat, lon) {
   return `${lat.toFixed(4)},${lon.toFixed(4)}`;
 }
@@ -5371,6 +5362,18 @@ if (locationFilterDetailsEl) {
 }
 
 window.addEventListener("resize", layoutSidebarSections);
+window.addEventListener("resize", () => {
+  if (window.innerWidth > 920) {
+    setSidebarCollapsed(false);
+  }
+});
+
+if (sidebarToggleEl) {
+  sidebarToggleEl.addEventListener("click", () => {
+    const collapsed = !document.body.classList.contains("sidebar-collapsed");
+    setSidebarCollapsed(collapsed);
+  });
+}
 
 if (satComboInputEl) {
   satComboInputEl.addEventListener("input", () => {
@@ -5474,12 +5477,6 @@ if (satInfoEl) {
     }
     clearActiveSatelliteSelection(false);
     setStatus("Satellite selection cleared.");
-  });
-}
-
-if (coffeeBannerBtnEl) {
-  coffeeBannerBtnEl.addEventListener("click", () => {
-    window.open("#", "_blank", "noopener,noreferrer");
   });
 }
 
@@ -5627,6 +5624,7 @@ document.addEventListener("click", (event) => {
 
 async function bootstrap() {
   const sharedViewState = readShareViewStateFromUrl();
+  setSidebarCollapsed(false);
   setActiveTab("filters");
   applyVerticalFitConstraints(true);
   simulatedTimeMs = Date.now();
@@ -5705,15 +5703,6 @@ async function bootstrap() {
   syncPlayButton();
   passesListEl.innerHTML = "";
   setStatus("Choose your observer location to calculate passes.");
-  setTimeout(() => {
-    setStatus("Already loving this tracker", {
-      actionLabel: "Buy me a coffe",
-      actionTone: "green",
-      actionHref: "#",
-      durationMs: 12000
-    });
-    showCoffeeBannerFor10s();
-  }, 38200);
   requestAnimationFrame(animate);
 }
 

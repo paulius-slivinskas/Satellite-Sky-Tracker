@@ -15,6 +15,16 @@
   </head>
   <body>
     <div class="app">
+      <button
+        id="sidebar-toggle"
+        class="sidebar-toggle"
+        type="button"
+        aria-label="Toggle sidebar"
+        aria-expanded="true"
+        title="Toggle sidebar"
+      >
+        <span aria-hidden="true"></span>
+      </button>
       <div class="sidebar-stack">
         <aside id="sidebar-main" class="sidebar sidebar-main">
           <div class="sidebar-scroll">
@@ -189,10 +199,6 @@
         <div id="status" class="status"></div>
         <div class="right-stack">
           <aside id="sat-info" class="sat-info-panel hidden"></aside>
-          <div id="coffee-banner" class="coffee-banner hidden">
-            <span>Already loving this tracker</span>
-            <button id="coffee-banner-btn" type="button" class="coffee-banner-btn">Buy me a coffe</button>
-          </div>
         </div>
       </main>
     </div>
