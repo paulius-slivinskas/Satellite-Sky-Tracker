@@ -1,0 +1,285 @@
+.satellite-selection-trigger {
+  height: auto;
+  min-height: 68px;
+  padding: 12px 14px;
+  justify-content: space-between;
+  border: 1px solid var(--field-border);
+  border-radius: var(--field-radius);
+  background: var(--field-background);
+  color: var(--field-foreground);
+  text-align: left;
+}
+.satellite-selection-trigger-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.satellite-selection-trigger-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+.satellite-selection-trigger-summary {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.satellite-selection-trigger > svg {
+  flex: 0 0 auto;
+}
+.satellite-selection-backdrop {
+  z-index: 2000;
+}
+.satellite-selection-dialog {
+  width: min(1040px, calc(100vw - 40px));
+  max-width: 1040px;
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-family: var(--font-sans);
+}
+.satellite-selection-header {
+  padding: 24px 56px 22px 24px;
+  flex: 0 0 auto;
+}
+.satellite-selection-header p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.satellite-selection-body {
+  padding: 0;
+  overflow: hidden;
+  min-height: 0;
+}
+.satellite-selection-columns {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr) 290px;
+  height: min(560px, calc(100dvh - 230px));
+  min-height: 180px;
+  border-block: 1px solid var(--border);
+}
+.satellite-selection-categories,
+.satellite-selection-available,
+.satellite-selection-selected {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px;
+  gap: 14px;
+}
+.satellite-selection-categories,
+.satellite-selection-available {
+  border-right: 1px solid var(--border);
+}
+.satellite-selection-categories {
+  padding-inline: 12px;
+}
+.satellite-selection-column-heading {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+.satellite-selection-categories > .satellite-selection-column-heading {
+  padding-inline: 10px;
+}
+.satellite-selection-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+.satellite-selection-category {
+  flex: 0 0 auto;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 40px;
+  height: auto;
+  padding: 9px 10px;
+  gap: 10px;
+  text-align: left;
+  font-size: 12px;
+  white-space: normal;
+}
+.satellite-selection-category > span:first-child {
+  min-width: 0;
+}
+.satellite-selection-category[aria-pressed='true'] {
+  color: var(--foreground);
+  background: var(--surface-secondary);
+}
+.satellite-selection-count {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.satellite-selection-results {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.satellite-selection-search {
+  flex: 0 0 auto;
+}
+.satellite-selection-list,
+.satellite-selection-selected-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.satellite-selection-checkbox {
+  width: 100%;
+  border-bottom: 1px solid var(--separator);
+}
+.satellite-selection-checkbox .checkbox__content {
+  width: 100%;
+  min-height: 58px;
+  gap: 12px;
+  padding: 10px 4px;
+}
+.satellite-selection-checkbox .checkbox__control {
+  flex: 0 0 auto;
+}
+.satellite-selection-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.satellite-selection-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+.satellite-selection-meta {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted);
+  font-weight: 400;
+}
+.satellite-selection-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  flex: 0 0 auto;
+}
+.satellite-selection-heading-row .button {
+  font-size: 11px;
+  padding-inline: 8px;
+}
+.satellite-selection-selected-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.satellite-selection-selected-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--separator);
+}
+.satellite-selection-selected-row > .button {
+  flex: 0 0 auto;
+}
+.satellite-selection-selected-list:empty {
+  flex: 0 0 auto;
+}
+.satellite-selection-empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.satellite-selection-show-more {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.satellite-selection-footer {
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.satellite-selection-footer-count {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 850px) {
+  .satellite-selection-columns {
+    grid-template-columns: 170px minmax(0, 1fr) 240px;
+  }
+}
+@media (max-width: 720px) {
+  .satellite-selection-dialog {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  .satellite-selection-header {
+    padding: 20px 48px 18px 18px;
+  }
+  .satellite-selection-header p {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .satellite-selection-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .satellite-selection-columns {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+  }
+  .satellite-selection-categories,
+  .satellite-selection-available,
+  .satellite-selection-selected {
+    padding: 16px;
+    border-right: 0;
+  }
+  .satellite-selection-categories,
+  .satellite-selection-available {
+    border-bottom: 1px solid var(--border);
+  }
+  .satellite-selection-categories > .satellite-selection-column-heading {
+    padding: 0;
+  }
+  .satellite-selection-category-list {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 3px;
+  }
+  .satellite-selection-category {
+    width: auto;
+    white-space: nowrap;
+  }
+  .satellite-selection-list {
+    max-height: 240px;
+    flex: 0 1 auto;
+  }
+  .satellite-selection-selected-list {
+    max-height: 190px;
+    flex: 0 1 auto;
+  }
+  .satellite-selection-footer {
+    padding: 14px 16px;
+  }
+}

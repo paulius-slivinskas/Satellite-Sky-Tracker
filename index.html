@@ -1,214 +1,37 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0a0a" />
+    <script>
+      (() => {
+        let theme = 'dark';
+        try {
+          if (localStorage.getItem('satapp_theme') === 'light') theme = 'light';
+        } catch {
+          // Preserve the default when browser storage is unavailable.
+        }
+        const root = document.documentElement;
+        root.classList.toggle('dark', theme === 'dark');
+        root.classList.toggle('light', theme === 'light');
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]').content =
+          theme === 'dark' ? '#0a0a0a' : '#f6f7f9';
+      })();
+    </script>
     <title>Satellite Sky Tracker</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/mona-sans@5.1.1/index.min.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
+      href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&display=swap"
     />
-    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app">
-      <button
-        id="sidebar-toggle"
-        class="sidebar-toggle"
-        type="button"
-        aria-label="Toggle sidebar"
-        aria-expanded="true"
-        title="Toggle sidebar"
-      >
-        <span aria-hidden="true"></span>
-      </button>
-      <div class="sidebar-stack">
-        <aside id="sidebar-main" class="sidebar sidebar-main">
-          <div class="sidebar-scroll">
-          <h1>Satellite Sky Tracker</h1>
-          <p class="creator-credit">By LY8KH</p>
-          <p class="subtitle">Follow live satellites, forecast passes, and simulate future orbits.</p>
-
-          <div class="tabs" role="tablist" aria-label="Sidebar sections">
-            <button class="tab-btn active" data-tab="filters" role="tab" aria-selected="true">Filters</button>
-            <button class="tab-btn" data-tab="time" role="tab" aria-selected="false">Time</button>
-            <button class="tab-btn" data-tab="passes" role="tab" aria-selected="false">Passes</button>
-            <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
-          </div>
-
-          <section class="tab-panel active" data-panel="filters">
-            <h2>Filters</h2>
-            <label for="sat-search-input">Smart Search</label>
-            <input id="sat-search-input" type="text" placeholder="Type satellite name or NORAD ID" autocomplete="off" />
-            <div id="sat-search-suggestions" class="sat-search-suggestions"></div>
-            <div id="filters" class="filters"></div>
-            <div class="filter-item">
-              <span class="filter-label">
-                <span id="max-altitude-text" class="filter-name">Set max altitude</span>
-                <span id="max-altitude-input-wrap" class="input-suffix-wrap" hidden>
-                  <input id="max-altitude-input" type="number" min="1" step="1" placeholder="Set max altitude" />
-                  <span class="input-suffix">km</span>
-                </span>
-              </span>
-              <label class="filter-toggle">
-                <input id="max-altitude-toggle" class="filter-toggle-input" type="checkbox" />
-                <span class="filter-toggle-slider"></span>
-              </label>
-            </div>
-            <div class="filter-item">
-              <span class="filter-label">
-                <span class="filter-name">Show LOS Footprint</span>
-              </span>
-              <label class="filter-toggle">
-                <input id="all-los-toggle" class="filter-toggle-input" type="checkbox" />
-                <span class="filter-toggle-slider"></span>
-              </label>
-            </div>
-            <div class="filter-item">
-              <span class="filter-label">
-                <span class="filter-name">Low only visible</span>
-              </span>
-              <label class="filter-toggle">
-                <input id="los-only-toggle" class="filter-toggle-input" type="checkbox" />
-                <span class="filter-toggle-slider"></span>
-              </label>
-            </div>
-            <div class="filter-item">
-              <span class="filter-label">
-                <span class="filter-name">Show Passes on Map</span>
-              </span>
-              <label class="filter-toggle">
-                <input id="show-passes-toggle" class="filter-toggle-input" type="checkbox" checked />
-                <span class="filter-toggle-slider"></span>
-              </label>
-            </div>
-            <p id="sat-count" class="muted">Loading satellites...</p>
-          </section>
-
-          <section class="tab-panel" data-panel="time">
-            <h2>Time Control</h2>
-            <button id="play-toggle" class="btn">Pause</button>
-            <label for="speed-select">Speed</label>
-            <select id="speed-select">
-              <option value="1" selected>1x</option>
-              <option value="10">10x</option>
-              <option value="60">60x</option>
-              <option value="300">300x</option>
-              <option value="900">900x</option>
-            </select>
-            <div class="time-label-row">
-              <label for="timeline">Time</label>
-              <button id="reset-time" type="button" class="location-summary-action time-reset-btn">Reset</button>
-            </div>
-            <div id="timeline" class="time-jog" role="slider" aria-label="Time jog control" tabindex="0">
-              <div class="time-jog-track"></div>
-            </div>
-            <p id="time-label" class="muted"></p>
-          </section>
-
-          <section class="tab-panel" data-panel="passes">
-            <h2>Passes Over</h2>
-            <div class="filter-item">
-              <span class="filter-label">
-                <span class="filter-name">Show Passes on Map</span>
-              </span>
-              <label class="filter-toggle">
-                <input id="show-passes-toggle-passes" class="filter-toggle-input" type="checkbox" checked />
-                <span class="filter-toggle-slider"></span>
-              </label>
-            </div>
-
-            <label for="passes-days-select">Pass Range</label>
-            <select id="passes-days-select">
-              <option value="1" selected>1 day</option>
-              <option value="2">2 days</option>
-              <option value="3">3 days</option>
-              <option value="upcoming3">3 upcoming passes</option>
-              <option value="upcoming5">5 upcoming passes</option>
-            </select>
-
-            <label for="sat-combo-input">Satellite</label>
-            <input
-              id="sat-combo-input"
-              type="text"
-              placeholder="Select or type satellite name / NORAD ID"
-              autocomplete="off"
-            />
-            <div id="sat-combo-suggest-box" class="inline-suggest-box"></div>
-
-            <ul id="passes-list" class="passes-list"></ul>
-          </section>
-
-          <section class="tab-panel" data-panel="settings">
-            <h2>Settings</h2>
-            <label for="time-format-select">Time format</label>
-            <select id="time-format-select">
-              <option value="24h" selected>24-hour</option>
-              <option value="12h">12-hour</option>
-            </select>
-          </section>
-
-          </div>
-        </aside>
-
-        <aside id="sidebar-location" class="sidebar sidebar-location">
-          <div class="sidebar-scroll">
-            <details class="location-filter location-filter-bottom">
-              <summary>
-                <span class="location-summary-main">
-                  <span class="location-summary-pin" aria-hidden="true"></span>
-                  <span id="location-summary-value" class="location-summary-value">Not set</span>
-                </span>
-                <span id="location-summary-action" class="location-summary-action">Change</span>
-              </summary>
-              <div class="location-filter-content">
-                <label for="location-query">Location</label>
-                <input
-                  id="location-query"
-                  type="text"
-                  placeholder="Type city or country"
-                  autocomplete="off"
-                />
-                <div id="location-suggest-box" class="inline-suggest-box"></div>
-
-                <label for="observer-lat">Latitude</label>
-                <input id="observer-lat" type="number" step="0.0001" placeholder="e.g. 40.7128" />
-
-                <label for="observer-lon">Longitude</label>
-                <input id="observer-lon" type="number" step="0.0001" placeholder="e.g. -74.0060" />
-
-                <button id="search-location" class="btn">Find Location</button>
-                <button id="reset-location" type="button" class="location-summary-action">Reset location</button>
-
-                <div class="location-altitude-block">
-                  <label for="observer-alt">Altitude (m)</label>
-                  <input id="observer-alt" type="number" step="1" placeholder="Enter altitude above sea level" />
-                  <p class="field-helper">Adjust altitude if your actual position at this point is above ground level.</p>
-                </div>
-              </div>
-            </details>
-          </div>
-        </aside>
-      </div>
-
-      <main class="map-wrap">
-        <div id="map"></div>
-        <div id="status" class="status"></div>
-        <div class="right-stack">
-          <aside id="sat-info" class="sat-info-panel hidden"></aside>
-        </div>
-      </main>
-    </div>
-
-    <script
-      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-      crossorigin=""
-    ></script>
-    <script src="https://unpkg.com/satellite.js@5.0.0/dist/satellite.min.js"></script>
-    <script src="app.js"></script>
+    <div id="root"></div>
+    <noscript>This satellite tracker requires JavaScript.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

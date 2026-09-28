@@ -4,12 +4,47 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
+    "update:satellite-names": "node scripts/update-satellite-names.cjs",
+    "dev": "concurrently -k \"node --watch server.js\" \"vite --host 127.0.0.1\"",
+    "dev:client": "vite --host 127.0.0.1",
     "start": "node server.js",
-    "dev": "node server.js"
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "check": "npm run typecheck && npm test && npm run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@heroui/react": "^3.2.6",
+    "@heroui/styles": "^3.2.6",
+    "@maplibre/maplibre-gl-leaflet": "^0.1.4",
     "express": "^4.21.2",
+    "leaflet": "^1.9.4",
     "lru-cache": "^10.4.3",
-    "redis": "^4.7.0"
+    "maplibre-gl": "^6.11.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "redis": "^4.7.0",
+    "satellite.js": "^5.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.5",
+    "prettier": "^3.9.9",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }
