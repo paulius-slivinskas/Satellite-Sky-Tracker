@@ -19,7 +19,10 @@ function descriptor(kind, query) {
     Object.keys(query).some((key) => !allowed.includes(key)) ||
     Object.values(query).some((value) => typeof value !== 'string')
   )
-    throw new CelestrakError('Unsupported CelesTrak parameters', 400);
+    throw new CelestrakError(
+      `Unsupported CelesTrak parameters: ${Object.keys(query).join(', ')}`,
+      400,
+    );
   const format = kind === 'elements' ? 'tle' : 'json';
   if (query.FORMAT !== undefined && query.FORMAT.toLowerCase() !== format)
     throw new CelestrakError('Unsupported CelesTrak format', 400);
