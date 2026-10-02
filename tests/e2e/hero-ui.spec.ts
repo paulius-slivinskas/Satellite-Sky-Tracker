@@ -69,6 +69,7 @@ test('satellite and transmitter use HeroUI cards with an exterior, keyboard-oper
   await expect(panel).toBeVisible();
   await expect(close).toBeVisible();
   await close.click();
+  await expect(page.locator('#map')).toHaveAttribute('data-selected-norad', '25544');
   await expect(panel).toHaveCount(0);
   await expect(close).toHaveCount(0);
   await selectIss(page);

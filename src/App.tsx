@@ -27,12 +27,15 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(() => window.innerWidth <= 1100);
   const [locationOpen, setLocationOpen] = useState(false);
   const [activePass, setActivePass] = useState<number | null>(null);
-  const [selectedPass, setSelectedPass] = useState<number | null>(null);
+  const [selectedPassKey, setSelectedPassKey] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(true);
   const patch = useCallback(
     (value: Partial<ViewState>) => dispatch({ type: 'patch', patch: value }),
     [],
   );
   const select = useCallback((norad: string | null) => {
+    setDetailsOpen(true);
+    setSelectedPassKey(null);
     dispatch({ type: 'select', norad });
     if (norad && window.innerWidth <= 1100) setCollapsed(true);
   }, []);
@@ -47,6 +50,19 @@ export default function App() {
     state.simulatedTimeMs,
     state.passRange,
   );
+  const selectedPassIndex = predictions.passes.findIndex(
+    (pass) => `${pass.noradId}-${pass.start}` === selectedPassKey,
+  );
+  const selectedPass = selectedPassIndex >= 0 ? selectedPassIndex : null;
+  const choosePass = (index: number) => {
+    const pass = predictions.passes[index];
+    if (!pass) return;
+    setSelectedPassKey(`${pass.noradId}-${pass.start}`);
+    setDetailsOpen(true);
+    dispatch({ type: 'select', norad: pass.noradId });
+    patch({ showPassesOnMap: true });
+    if (window.innerWidth <= 1100) setCollapsed(true);
+  };
   const notifications = usePassNotifications(passSatellites, state.observer, predictions.passes);
   useEffect(() => {
     const timer = setTimeout(() => saveView(state), 250);
@@ -60,9 +76,10 @@ export default function App() {
           (state.categories.includes('tracked') && state.tracked.includes(sat.id)) ||
           (state.categories.includes('amateur_selected') &&
             isAmateurSelectedName(sat.name, sat.noradId)) ||
-          state.searchNorad === sat.noradId,
+          state.searchNorad === sat.noradId ||
+          state.selectedNorad === sat.noradId,
       ),
-    [catalog.satellites, state.categories, state.tracked, state.searchNorad],
+    [catalog.satellites, state.categories, state.tracked, state.searchNorad, state.selectedNorad],
   );
   const frame = useMemo(() => {
     const positions = new Map<string, Position>();
@@ -71,8 +88,13 @@ export default function App() {
       const pos = positionAt(sat, time, state.observer);
       if (
         !pos ||
-        (state.maxAltitudeEnabled && pos.altKm > state.maxAltitudeKm) ||
-        (state.losOnlyEnabled && state.observer && (pos.elevation ?? -90) < 0)
+        (sat.noradId !== state.selectedNorad &&
+          state.maxAltitudeEnabled &&
+          pos.altKm > state.maxAltitudeKm) ||
+        (sat.noradId !== state.selectedNorad &&
+          state.losOnlyEnabled &&
+          state.observer &&
+          (pos.elevation ?? -90) < 0)
       )
         return false;
       positions.set(sat.id, pos);
@@ -85,6 +107,7 @@ export default function App() {
     return { positions, nextPositions, visible };
   }, [
     candidates,
+    state.selectedNorad,
     time,
     state.playing,
     state.speed,
@@ -111,6 +134,8 @@ export default function App() {
     [],
   );
   const searchSelect = (norad: string | null) => {
+    setDetailsOpen(true);
+    setSelectedPassKey(null);
     dispatch({ type: 'select', norad, search: true });
     const sat = catalog.satellites.find((s) => s.noradId === norad);
     const pos = sat ? positionAt(sat, time) : null;
@@ -119,11 +144,10 @@ export default function App() {
   };
   useEffect(() => {
     setActivePass(null);
-    setSelectedPass(null);
   }, [predictions.passes]);
   return (
     <div
-      className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected ? 'sat-info-open' : ''}`}
+      className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''}`}
     >
       <Button
         className="sidebar-toggle"
@@ -132,7 +156,7 @@ export default function App() {
         aria-label={collapsed ? 'Open sidebar' : 'Close sidebar'}
         aria-expanded={!collapsed}
         onPress={() => {
-          if (collapsed && window.innerWidth <= 1100) patch({ selectedNorad: null });
+          if (collapsed && window.innerWidth <= 1100) setDetailsOpen(false);
           setCollapsed((value) => !value);
         }}
       >
@@ -154,7 +178,7 @@ export default function App() {
         aria-label="Mobile tracking navigation"
         onClick={(event) => {
           if ((event.target as HTMLElement).closest('[role="tab"]')) {
-            patch({ selectedNorad: null });
+            setDetailsOpen(false);
             setCollapsed(false);
           }
         }}
@@ -162,9 +186,10 @@ export default function App() {
         <Tabs
           selectedKey={state.tab}
           onSelectionChange={(key) => {
+            setDetailsOpen(false);
             patch({
               tab: String(key) as ViewState['tab'],
-              selectedNorad: null,
+
               ...(key === 'passes' ? { simulatedTimeMs: readTime() } : {}),
             });
             setCollapsed(false);
@@ -319,11 +344,7 @@ export default function App() {
                   patch={patch}
                   select={select}
                   hover={setActivePass}
-                  choosePass={(index) => {
-                    setSelectedPass(index);
-                    patch({ showPassesOnMap: true, selectedNorad: null });
-                    if (window.innerWidth <= 1100) setCollapsed(true);
-                  }}
+                  choosePass={choosePass}
                   notificationControls={<PassNotificationControls notifications={notifications} />}
                 />
               </Tabs.Panel>
@@ -382,16 +403,17 @@ export default function App() {
           timeFormat={state.timeFormat}
           view={state.map}
           onSelect={select}
+          onSelectPass={choosePass}
           onViewChange={changeMap}
           onSetObserverLocation={() => {
             setCollapsed(false);
             setLocationOpen(true);
-            if (window.innerWidth <= 1100) patch({ selectedNorad: null });
+            if (window.innerWidth <= 1100) setDetailsOpen(false);
           }}
           onHoverPass={setActivePass}
         />
         <CatalogNotice catalog={catalog} onRetry={catalog.refresh} timeFormat={state.timeFormat} />
-        {selected && (
+        {selected && detailsOpen && (
           <div className="right-stack">
             <SatelliteInfo
               key={selected.noradId}
@@ -399,7 +421,7 @@ export default function App() {
               observer={state.observer}
               tracked={state.tracked.includes(selected.id)}
               onTrack={() => dispatch({ type: 'toggleTracked', id: selected.id })}
-              onClose={() => patch({ selectedNorad: null })}
+              onClose={() => setDetailsOpen(false)}
               onShare={() => navigator.clipboard.writeText(shareUrl(state, time))}
             />
           </div>

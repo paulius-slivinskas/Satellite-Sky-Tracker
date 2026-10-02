@@ -3,8 +3,8 @@
   inset: 0;
   z-index: 2500;
   overflow: auto;
-  background: #100c0d;
-  color: #db9690;
+  background: #080000;
+  color: #8b2525;
   padding: 24px max(20px, calc((100vw - 640px) / 2));
   padding-top: max(24px, env(safe-area-inset-top));
   padding-bottom: max(24px, env(safe-area-inset-bottom));
@@ -18,7 +18,7 @@
 }
 .satellite-finder h2 {
   font-size: 24px;
-  color: #e7b0a8;
+  color: #a32c2c;
 }
 .satellite-finder h3 {
   text-align: center;
@@ -33,9 +33,9 @@
   letter-spacing: 0.08em;
 }
 .satellite-finder button {
-  color: #e7b0a8;
-  background: #301b1c;
-  border: 1px solid #63413c;
+  color: #a32c2c;
+  background: #180000;
+  border: 1px solid #451010;
   min-height: 44px;
   padding: 8px 16px;
   border-radius: 12px;
@@ -44,7 +44,7 @@
   width: 160px;
   height: 160px;
   margin: 24px auto 8px;
-  border: 1px solid #63413c;
+  border: 1px solid #451010;
   border-radius: 50%;
   position: relative;
   display: grid;
@@ -62,36 +62,19 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.finder-trajectory {
-  display: flex;
-  list-style: none;
-  gap: 8px;
-  padding: 0;
-  margin: 12px 0;
-}
-.finder-trajectory li {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  font-size: 11px;
-}
-.finder-trajectory strong {
-  font-size: 13px;
-}
 .finder-sensors {
-  border-top: 1px solid #63413c;
+  border-top: 1px solid #451010;
   padding-top: 18px;
   margin-top: 18px;
 }
 .finder-sensors input {
   display: block;
   width: 100%;
-  accent-color: #b97570;
+  accent-color: #702020;
   min-height: 44px;
 }
 .satellite-finder :focus-visible {
-  outline: 2px solid #e7b0a8;
+  outline: 2px solid #a32c2c;
   outline-offset: 4px;
 }
 .finder-launch {
@@ -102,4 +85,97 @@
 }
 .satellite-finder {
   pointer-events: auto;
+}
+
+.satellite-finder {
+  color-scheme: dark;
+  --color-accent: #702020;
+  --color-accent-foreground: #a32c2c;
+}
+.satellite-finder button:hover {
+  background: #240000;
+  color: #a32c2c;
+}
+.finder-pass {
+  margin-top: 16px;
+}
+.finder-pass svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.finder-pass svg text {
+  fill: #8b2525;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.finder-pass-track {
+  fill: none;
+  stroke: #451010;
+  stroke-width: 2;
+}
+.finder-pass-dot {
+  fill: #a32c2c;
+}
+.finder-pass-note {
+  font-size: 12px;
+}
+.finder-sensors input[type='range'] {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+}
+.finder-sensors input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  background: #451010;
+  border-radius: 4px;
+}
+.finder-sensors input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: #702020;
+  border: 1px solid #8b2525;
+}
+.finder-sensors input[type='range']::-moz-range-track {
+  height: 4px;
+  background: #451010;
+}
+.finder-sensors input[type='range']::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #702020;
+  border: 1px solid #8b2525;
+}
+
+.finder-reference {
+  font-size: 11px;
+}
+@media (max-width: 680px) {
+  .satellite-finder {
+    padding-inline: 16px;
+    font-size: 12px;
+  }
+  .satellite-finder h2 {
+    font-size: 20px;
+  }
+  .satellite-finder h3 {
+    font-size: 22px;
+    margin: 8px 0;
+  }
+  .satellite-finder p {
+    margin: 8px 0;
+  }
+  .finder-dial {
+    width: 130px;
+    height: 130px;
+    margin: 14px auto;
+  }
+  .finder-pass {
+    margin-top: 12px;
+  }
 }

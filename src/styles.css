@@ -1263,3 +1263,12 @@ h3 {
 .pass-item [data-slot='card-footer'] {
   width: 100%;
 }
+
+.pass-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pass-actions .finder-launch {
+  width: 100%;
+}

@@ -5,6 +5,7 @@ import { cardinal, lookAngles } from '../domain/orbits';
 import { Choice, Toggle } from './Controls';
 import { SatelliteSelection } from './SatelliteSelection';
 import { AppAlert } from './AppAlert';
+import { SatelliteFinder } from './SatelliteFinder';
 export function PassesPanel({
   state,
   satellites,
@@ -212,7 +213,10 @@ export function PassesPanel({
                     </p>
                   )}
                 </Card.Content>
-                <Card.Footer>
+                <Card.Footer className="pass-actions">
+                  {satellite && (
+                    <SatelliteFinder satellite={satellite} observer={state.observer} pass={pass} />
+                  )}
                   <Button
                     fullWidth
                     size="sm"

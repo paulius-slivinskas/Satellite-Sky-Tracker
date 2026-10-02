@@ -49,8 +49,8 @@ test('selecting a pass keeps its highlight and opens the mobile map without them
   if (mobile) await expect(page.locator('.theme-control')).toBeHidden();
   const card = page.locator('.pass-item').nth(1);
   await expect(card).toBeVisible();
-  if (mobile) await card.tap();
-  else await card.click();
+  if (mobile) await card.locator('.pass-header').tap();
+  else await card.locator('.pass-header').click();
   if (mobile) {
     await expect(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible();
     await expect(page.locator('.theme-control')).toBeVisible();
@@ -83,4 +83,46 @@ test('compact pass summary keeps predictions fixed while current position follow
   await page.clock.fastForward(60000);
   await expect(elevation).not.toHaveText(before);
   await expect(card.locator('.pass-summary-grid dd').first()).toHaveText(start);
+});
+
+test('trajectory selection opens satellite details and closing them preserves pass and satellite selection', async ({
+  page,
+}, testInfo) => {
+  await prepare(page);
+  await page.goto(
+    `/?view=${encoded({ version: 2, categories: ['iss'], tab: 'passes', playing: false, simulatedTimeMs: Date.parse('2024-02-29T12:30:00Z'), passRange: 'upcoming3', passWatchlist: ['25544'], observer: { lat: 54.6872, lon: 25.2797, alt: 120, name: 'Vilnius' }, showPassesOnMap: true })}`,
+  );
+  await expect(page.locator('#map')).toHaveAttribute('data-pass-count', '3');
+  const hit = page.locator('.pass-trajectory-hit[data-pass-index="1"]').first();
+  const losStart = await hit.getAttribute('data-los-start');
+  await hit.dispatchEvent('click');
+  const details = page.getByRole('complementary', { name: 'ISS satellite details', exact: true });
+  await expect(details).toBeVisible();
+  await expect(page.locator('#map')).toHaveAttribute('data-active-pass', '1');
+  await page.getByRole('button', { name: 'Close satellite details', exact: true }).click();
+  await expect(details).toHaveCount(0);
+  await expect(page.locator('#map')).toHaveAttribute('data-selected-norad', '25544');
+  await expect(page.locator('#map')).toHaveAttribute('data-active-pass', '1');
+  await expect
+    .poll(async () =>
+      page
+        .locator('.pass-approach-path')
+        .evaluateAll((paths) => [...new Set(paths.map((path) => path.getAttribute('data-to')))]),
+    )
+    .toEqual([losStart]);
+  await openSidebar(page);
+  const card = page.locator('.pass-item').nth(1);
+  await expect(card).toHaveAttribute('aria-pressed', 'true');
+  const start = Number(await card.getAttribute('data-pass-start'));
+  const end = Number(await card.getAttribute('data-pass-end'));
+  await card.getByRole('button', { name: 'Find in the sky', exact: true }).click();
+  const finder = page.getByRole('dialog', { name: 'Satellite sky finder' });
+  await expect(finder.getByRole('region', { name: 'Pass progress' })).toBeVisible();
+  await expect(finder.getByText(/Not started yet/)).toBeVisible();
+  await page.clock.setFixedTime(new Date((start + end) / 2));
+  await expect(finder.getByRole('img')).toHaveAttribute('aria-label', /^Pass 50 percent complete/);
+  expect(Number(await finder.locator('.finder-pass-dot').getAttribute('cx'))).toBeCloseTo(200, 1);
+  await expect(finder.getByRole('img')).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: testInfo.outputPath('red-finder-pass-progress.png') });
+  await expect(finder.getByRole('region', { name: 'Upcoming trajectory' })).toHaveCount(0);
 });

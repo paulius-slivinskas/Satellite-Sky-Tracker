@@ -2,22 +2,20 @@ import { Button } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cardinal, lookAngles } from '../domain/orbits';
-import {
-  finderTrajectory,
-  nextHorizonPreview,
-  pointingInstruction,
-  shortestTurn,
-} from '../domain/finder';
-import type { Observer, Satellite } from '../domain/types';
+import { passProgress, pointingInstruction, shortestTurn } from '../domain/finder';
+import { predictPasses } from '../domain/passes';
+import type { Observer, Satellite, SatellitePass } from '../domain/types';
 import { useDeviceOrientation } from '../state/deviceOrientation';
 import './SatelliteFinder.css';
 
 export function SatelliteFinder({
   satellite,
   observer,
+  pass,
 }: {
   satellite: Satellite;
   observer: Observer | null;
+  pass?: SatellitePass;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -27,7 +25,12 @@ export function SatelliteFinder({
       </Button>
       {open &&
         createPortal(
-          <FinderView satellite={satellite} observer={observer} onClose={() => setOpen(false)} />,
+          <FinderView
+            satellite={satellite}
+            observer={observer}
+            pass={pass}
+            onClose={() => setOpen(false)}
+          />,
           document.body,
         )}
     </>
@@ -37,10 +40,12 @@ function FinderView({
   satellite,
   observer,
   onClose,
+  pass,
 }: {
   satellite: Satellite;
   observer: Observer | null;
   onClose: () => void;
+  pass?: SatellitePass;
 }) {
   const orientation = useDeviceOrientation();
   const [now, setNow] = useState(Date.now);
@@ -69,12 +74,25 @@ function FinderView({
     };
   }, []);
   const look = observer ? lookAngles(satellite, now, observer) : null;
-  const trajectory = observer ? finderTrajectory(satellite, observer, now) : [];
   const minute = Math.floor(now / 60000);
-  const next = useMemo(
-    () => (observer ? nextHorizonPreview(satellite, observer, minute * 60000) : null),
-    [satellite, observer, minute],
-  );
+  const derivedPass = useMemo(() => {
+    if (pass || !observer) return null;
+    // Include the previous orbit to recover the current pass's start. Recompute only
+    // once per minute, never for the one-second pointing updates.
+    return (
+      predictPasses(satellite, observer, minute * 60000 - 90 * 60000, '5h').find(
+        (candidate) => candidate.end > minute * 60000,
+      ) ?? null
+    );
+  }, [satellite, observer, minute, pass]);
+  const shownPass = pass ?? derivedPass;
+  const progress = shownPass ? passProgress(shownPass, now) : null;
+  const clock = (time: number) =>
+    new Date(time).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   const sensorActive = orientation.status === 'active' && orientation.heading !== null;
   const heading = sensorActive ? orientation.heading! : manualHeading;
   const turn = look ? shortestTurn(heading, look.azimuth) : 0;
@@ -113,7 +131,7 @@ function FinderView({
           ×
         </button>
       </header>
-      <p>Uses the current clock, independent of map simulation. Azimuth is from true north.</p>
+      <p className="finder-reference">Live position · Azimuth from true north</p>
       {(!Number.isFinite(tleAgeDays) || tleAgeDays > 7 || tleAgeDays < -1) && (
         <p role="status">
           Orbit elements are old or their epoch is invalid. Live pointing may be inaccurate; refresh
@@ -141,13 +159,64 @@ function FinderView({
             {cardinal(look.azimuth)} {look.azimuth.toFixed(1)}° azimuth ·{' '}
             {look.elevation.toFixed(1)}° elevation
           </p>
-          {!above && (
-            <p>
-              {next && next.at > now
-                ? `Next horizon crossing around ${new Date(next.at).toLocaleTimeString()}, toward ${cardinal(next.azimuth)}.`
-                : 'No upcoming crossing found in the next three hours.'}
-            </p>
-          )}
+          <section className="finder-pass" aria-label="Pass progress">
+            <h4>Pass progress</h4>
+            {shownPass && progress ? (
+              <>
+                <p>
+                  {progress.status === 'upcoming'
+                    ? 'Not started yet'
+                    : progress.status === 'complete'
+                      ? 'Pass complete'
+                      : 'Pass in progress'}{' '}
+                  · Live clock
+                </p>
+                <svg
+                  viewBox="0 0 400 146"
+                  role="img"
+                  aria-label={`Pass ${Math.round(progress.progress * 100)} percent complete. Start ${clock(shownPass.start)}. End ${clock(shownPass.end)}. Current time ${clock(now)}.`}
+                >
+                  <path d="M40 90 Q200 50 360 90" className="finder-pass-track" />
+                  <circle cx={progress.x} cy={progress.y} r="4" className="finder-pass-dot" />
+                  <text
+                    x={progress.x}
+                    y={progress.y - 15}
+                    textAnchor={
+                      progress.progress < 0.15
+                        ? 'start'
+                        : progress.progress > 0.85
+                          ? 'end'
+                          : 'middle'
+                    }
+                    className="finder-pass-now"
+                  >
+                    {clock(now)}
+                  </text>
+                  <text x="40" y="112" textAnchor="start">
+                    Start
+                    <tspan x="40" dy="17">
+                      {clock(shownPass.start)}
+                    </tspan>
+                  </text>
+                  <text x="360" y="112" textAnchor="end">
+                    End
+                    <tspan x="360" dy="17">
+                      {clock(shownPass.end)}
+                    </tspan>
+                  </text>
+                </svg>
+                <p className="finder-pass-note">
+                  {shownPass.startClipped || shownPass.endClipped
+                    ? 'Pass boundary extends beyond the prediction window. '
+                    : ''}
+                  The arc shows elapsed pass time. Pointing directions above always use the current
+                  satellite position.
+                </p>
+              </>
+            ) : (
+              <p>No current or upcoming pass found in the prediction window.</p>
+            )}
+          </section>
           {above && (
             <p>
               Point toward {cardinal(look.azimuth)}, {Math.round(look.elevation)}° above the
@@ -155,20 +224,6 @@ function FinderView({
               as a separate guide.
             </p>
           )}
-          <section aria-label="Upcoming trajectory">
-            <h4>Direction over the next minute</h4>
-            <ol className="finder-trajectory">
-              {trajectory.map((point) => (
-                <li key={point.seconds}>
-                  <span>+{point.seconds}s</span>
-                  <strong>
-                    {cardinal(point.azimuth)} {Math.round(point.azimuth)}°
-                  </strong>
-                  <span>{Math.round(point.elevation)}° high</span>
-                </li>
-              ))}
-            </ol>
-          </section>
           <p>
             Above the horizon does not guarantee visibility: sunlight, cloud and satellite
             brightness matter.

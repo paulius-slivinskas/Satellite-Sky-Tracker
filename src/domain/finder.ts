@@ -1,5 +1,4 @@
-import { lookAngles } from './orbits';
-import type { Observer, Satellite } from './types';
+import type { Pass } from './types';
 
 /** Clockwise turn from current heading to target, in [-180, 180). */
 export function shortestTurn(current: number, target: number): number {
@@ -10,34 +9,19 @@ export function pointingInstruction(turn: number): string {
     ? 'Facing the satellite'
     : `Turn ${turn > 0 ? 'right' : 'left'} ${Math.round(Math.abs(turn))}°`;
 }
-export function finderTrajectory(satellite: Satellite, observer: Observer, now: number) {
-  return [0, 15, 30, 45, 60].flatMap((seconds) => {
-    const look = lookAngles(satellite, now + seconds * 1000, observer);
-    return look ? [{ ...look, seconds }] : [];
-  });
-}
-/** Bounded three-hour horizon preview; independent of the map simulation. */
-export function nextHorizonPreview(satellite: Satellite, observer: Observer, now: number) {
-  const initial = lookAngles(satellite, now, observer);
-  if (!initial || initial.elevation >= 0) return null;
-  let previous = now;
-  for (let at = now + 30000; at <= now + 3 * 3600000; at += 30000) {
-    const look = lookAngles(satellite, at, observer);
-    if (!look) return null;
-    if (look.elevation >= 0) {
-      let low = previous;
-      let high = at;
-      for (let step = 0; step < 8; step++) {
-        const mid = (low + high) / 2;
-        const position = lookAngles(satellite, mid, observer);
-        if (!position) return null;
-        if (position.elevation >= 0) high = mid;
-        else low = mid;
-      }
-      const rise = lookAngles(satellite, high, observer);
-      return rise ? { at: high, ...rise } : null;
-    }
-    previous = at;
-  }
-  return null;
+/** Progress follows the real clock even when a future pass was selected. */
+export function passProgress(pass: Pick<Pass, 'start' | 'end'>, now: number) {
+  if (![pass.start, pass.end, now].every(Number.isFinite) || pass.end <= pass.start) return null;
+  const progress = Math.max(0, Math.min(1, (now - pass.start) / (pass.end - pass.start)));
+  return {
+    progress,
+    status:
+      now < pass.start
+        ? ('upcoming' as const)
+        : now >= pass.end
+          ? ('complete' as const)
+          : ('active' as const),
+    x: 40 + 320 * progress,
+    y: 90 - 80 * progress * (1 - progress),
+  };
 }

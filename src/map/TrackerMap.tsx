@@ -47,6 +47,7 @@ interface Props {
   onSelect: (norad: string) => void;
   onViewChange: (view: ViewState['map']) => void;
   onHoverPass: (index: number | null) => void;
+  onSelectPass: (index: number) => void;
   onSetObserverLocation: () => void;
 }
 interface PassLayers {
@@ -425,10 +426,17 @@ export const TrackerMap = memo(function TrackerMap(props: Props) {
             opacity,
             interactive: false,
           }).addTo(e.passes);
-          const hit = L.polyline(coords, { weight: 10, opacity: 0 }).addTo(e.passes);
+          const hit = L.polyline(coords, {
+            weight: 10,
+            opacity: 0,
+            className: 'pass-trajectory-hit',
+            renderer: e.approachRenderer,
+          }).addTo(e.passes);
+          hit.getElement()?.setAttribute('data-pass-index', String(index));
+          hit.getElement()?.setAttribute('data-los-start', String(pass.losStart));
           hit.on('mouseover', () => latest.current.onHoverPass(index));
           hit.on('mouseout', () => latest.current.onHoverPass(null));
-          hit.on('click', () => latest.current.onSelect(pass.noradId));
+          hit.on('click', () => latest.current.onSelectPass(index));
           rendered.lines.push(line);
         }
       for (const [time, type] of [
@@ -466,7 +474,20 @@ export const TrackerMap = memo(function TrackerMap(props: Props) {
   }, [props.passes, props.passSatellites, props.showPasses, props.timeFormat]);
   useEffect(() => {
     const e = engine.current!;
-    const approaches = props.showPasses ? nextPassApproaches(props.passes, props.time) : [];
+    const focusedPass = props.activePass === null ? null : props.passes[props.activePass];
+    const focusedApproach =
+      focusedPass &&
+      Number.isFinite(focusedPass.losStart) &&
+      Number.isFinite(focusedPass.losEnd) &&
+      focusedPass.losStart > props.time &&
+      focusedPass.losEnd > focusedPass.losStart
+        ? [{ pass: focusedPass, index: props.activePass! }]
+        : [];
+    const approaches = !props.showPasses
+      ? []
+      : props.activePass !== null
+        ? focusedApproach
+        : nextPassApproaches(props.passes, props.time);
     const key = approaches
       .map(({ pass, index }) => `${pass.noradId}:${index}:${pass.losStart}`)
       .join('|');
@@ -500,7 +521,7 @@ export const TrackerMap = memo(function TrackerMap(props: Props) {
             color: sat.color,
             weight: focused ? 1.6 : 1.2,
             opacity: props.activePass === null ? 0.55 : focused ? 0.8 : 0.12,
-            dashArray: '4 7',
+            dashArray: '1 10',
             lineCap: 'round',
           },
           Math.max(10000, Math.ceil((pass.losStart - props.time) / 1200000) * 1000),
@@ -511,7 +532,7 @@ export const TrackerMap = memo(function TrackerMap(props: Props) {
     }
     const now = props.playing ? props.readTime() : props.time;
     e.approachLayers.forEach(({ track, to }) => track.update(now, to));
-  }, [props.passes, props.passSatellites, props.showPasses, props.time]);
+  }, [props.passes, props.passSatellites, props.showPasses, props.time, props.activePass]);
   useEffect(() => {
     engine.current!.approachLayers.forEach(({ index, track }) => {
       const focused = props.activePass === index;
@@ -538,6 +559,8 @@ export const TrackerMap = memo(function TrackerMap(props: Props) {
         ref={container}
         aria-label="Satellite world map"
         data-map-layer={mapLayer}
+        data-selected-norad={props.selected?.noradId ?? ''}
+        data-active-pass={props.activePass ?? ''}
         data-pass-count={props.showPasses ? props.passes.length : 0}
         data-pass-satellites={
           props.showPasses ? [...new Set(props.passes.map((pass) => pass.noradId))].join(' ') : ''

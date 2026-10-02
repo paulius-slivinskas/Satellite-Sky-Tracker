@@ -26,7 +26,7 @@ test('sky finder uses live clock, manual fallback and supports closing on a phon
   await expect(dialog.getByLabel('Manual compass heading')).toBeVisible();
   await dialog.getByLabel('Manual compass heading').fill('359');
   await expect(dialog.getByText('Manual heading from true north: 359°')).toBeVisible();
-  await expect(dialog.getByRole('region', { name: 'Upcoming trajectory' })).toBeVisible();
+  await expect(dialog.getByRole('region', { name: 'Pass progress' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Close sky finder' }).click();
   await expect(dialog).toHaveCount(0);
 });
