@@ -36,6 +36,14 @@ export function SatelliteFinder({
     </>
   );
 }
+export function SatelliteFinderDialog(props: {
+  satellite: Satellite;
+  observer: Observer | null;
+  pass?: SatellitePass;
+  onClose: () => void;
+}) {
+  return createPortal(<FinderView {...props} />, document.body);
+}
 function FinderView({
   satellite,
   observer,

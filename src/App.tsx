@@ -2,7 +2,7 @@ import { Button, Card, Separator, Tabs } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { FILTER_CONFIG, isAmateurSelectedName } from './domain/config';
 import { positionAt } from './domain/orbits';
-import type { Observer, Position, ViewState } from './domain/types';
+import type { Observer, Position, Satellite, SatellitePass, ViewState } from './domain/types';
 import { initialView, saveView, shareUrl, viewReducer } from './state/view';
 import { useCatalog, usePasses, useSimulation } from './state/hooks';
 import { TrackerMap } from './map/TrackerMap';
@@ -12,6 +12,7 @@ import { LocationPanel } from './components/LocationPanel';
 import { TimePanel } from './components/TimePanel';
 import { PassesPanel } from './components/PassesPanel';
 import { SatelliteInfo } from './components/SatelliteInfo';
+import { SatelliteFinderDialog } from './components/SatelliteFinder';
 import { useTheme } from './state/theme';
 import { CatalogNotice } from './components/CatalogNotice';
 import { usePassNotifications } from './state/notifications';
@@ -29,6 +30,10 @@ export default function App() {
   const [activePass, setActivePass] = useState<number | null>(null);
   const [selectedPassKey, setSelectedPassKey] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(true);
+  const [finderTarget, setFinderTarget] = useState<{
+    satellite: Satellite;
+    pass: SatellitePass;
+  } | null>(null);
   const patch = useCallback(
     (value: Partial<ViewState>) => dispatch({ type: 'patch', patch: value }),
     [],
@@ -345,6 +350,7 @@ export default function App() {
                   select={select}
                   hover={setActivePass}
                   choosePass={choosePass}
+                  findInSky={(satellite, pass) => setFinderTarget({ satellite, pass })}
                   notificationControls={<PassNotificationControls notifications={notifications} />}
                 />
               </Tabs.Panel>
@@ -427,6 +433,13 @@ export default function App() {
           </div>
         )}
       </main>
+      {finderTarget && (
+        <SatelliteFinderDialog
+          {...finderTarget}
+          observer={state.observer}
+          onClose={() => setFinderTarget(null)}
+        />
+      )}
       <div className="pass-notification-stack" aria-label="Pass notifications">
         {notifications.notices.map((notice) => (
           <AppAlert

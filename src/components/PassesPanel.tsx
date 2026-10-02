@@ -5,7 +5,6 @@ import { cardinal, lookAngles } from '../domain/orbits';
 import { Choice, Toggle } from './Controls';
 import { SatelliteSelection } from './SatelliteSelection';
 import { AppAlert } from './AppAlert';
-import { SatelliteFinder } from './SatelliteFinder';
 export function PassesPanel({
   state,
   satellites,
@@ -19,6 +18,7 @@ export function PassesPanel({
   select,
   hover,
   choosePass,
+  findInSky,
   notificationControls,
 }: {
   state: ViewState;
@@ -33,6 +33,7 @@ export function PassesPanel({
   select: (norad: string | null) => void;
   hover: (index: number | null) => void;
   choosePass: (index: number) => void;
+  findInSky: (satellite: Satellite, pass: SatellitePass) => void;
   notificationControls?: ReactNode;
 }) {
   const fmt = (value: number) =>
@@ -215,7 +216,14 @@ export function PassesPanel({
                 </Card.Content>
                 <Card.Footer className="pass-actions">
                   {satellite && (
-                    <SatelliteFinder satellite={satellite} observer={state.observer} pass={pass} />
+                    <Button
+                      className="finder-launch"
+                      fullWidth
+                      variant="secondary"
+                      onPress={() => findInSky(satellite, pass)}
+                    >
+                      Find in the sky
+                    </Button>
                   )}
                   <Button
                     fullWidth
