@@ -54,6 +54,7 @@ export default function App() {
     state.observer,
     state.simulatedTimeMs,
     state.passRange,
+    state.passMinElevationEnabled ? state.passMinElevationDegrees : 0,
   );
   const selectedPassIndex = predictions.passes.findIndex(
     (pass) => `${pass.noradId}-${pass.start}` === selectedPassKey,

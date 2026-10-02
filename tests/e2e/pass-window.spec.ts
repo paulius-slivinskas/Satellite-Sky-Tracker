@@ -29,7 +29,7 @@ test('a pass starting nine seconds before the range ends retains its full durati
   await expect(row('Pass End')).toHaveText('18:29:40');
   await expect(cards.locator('.pass-peak')).toHaveText('5.4°');
   const header = (await cards.locator('.pass-header').boundingBox())!;
-  const peak = (await cards.locator('.pass-header-stats').boundingBox())!;
+  const peak = (await cards.locator('.pass-header-meta').boundingBox())!;
   expect(peak.x + peak.width).toBeCloseTo(header.x + header.width, 0);
   const start = Number(await cards.getAttribute('data-pass-start'));
   expect(anchor + 3 * 3600000 - start).toBeGreaterThan(8000);
@@ -71,7 +71,7 @@ test('compact pass summary keeps predictions fixed while current position follow
   );
   await openSidebar(page);
   const card = page.locator('.pass-item').first();
-  await expect(card.locator('.pass-summary-grid .pass-row')).toHaveCount(2);
+  await expect(card.locator('.pass-summary-grid .pass-row')).toHaveCount(3);
   const start = await card.locator('.pass-summary-grid dd').first().innerText();
   await card.locator('summary').click();
   const elevation = card

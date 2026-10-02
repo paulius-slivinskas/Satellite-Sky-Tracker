@@ -162,8 +162,12 @@ export function predictWatchlistPasses(
   observer: Observer,
   now: number,
   range: PassRange,
+  minElevation = 0,
 ): SatellitePass[] {
   if (
+    !Number.isFinite(minElevation) ||
+    minElevation < 0 ||
+    minElevation > 90 ||
     !Number.isFinite(now) ||
     !['3h', '5h', '12h', '1', '2', '3', 'upcoming3', 'upcoming5'].includes(range)
   )
@@ -172,9 +176,15 @@ export function predictWatchlistPasses(
   for (const satellite of satellites)
     if (!unique.has(satellite.noradId)) unique.set(satellite.noradId, satellite);
   const candidates = [...unique.values()].flatMap((sat) =>
-    findElevationPasses(sat, observer, now, range, true)
+    findElevationPasses(
+      sat,
+      observer,
+      now,
+      minElevation > 0 && range.startsWith('upcoming') ? '3' : range,
+      true,
+    )
       .map((pass) => completeWindowEdges(sat, observer, pass))
-      .filter((pass) => pass.end > now)
+      .filter((pass) => pass.end > now && pass.maxElevation >= minElevation)
       .map((pass) => ({ sat, pass })),
   );
   candidates.sort(

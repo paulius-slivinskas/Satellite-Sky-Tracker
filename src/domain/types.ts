@@ -66,6 +66,8 @@ export interface ViewState {
   allLosEnabled: boolean;
   losOnlyEnabled: boolean;
   showPassesOnMap: boolean;
+  passMinElevationEnabled: boolean;
+  passMinElevationDegrees: number;
   maxAltitudeEnabled: boolean;
   maxAltitudeKm: number;
   timeFormat: '12h' | '24h';

@@ -108,7 +108,7 @@ test('pass HeroUI cards retain numerical details and focus/hover selection', asy
     await expect(card).toHaveAttribute('data-slot', 'card');
     await expect(card.locator('[data-slot="card-header"]')).toHaveCount(1);
     await expect(card.locator('[data-slot="card-title"]')).toHaveText('ISS');
-    await expect(card.locator('.pass-sequence')).toHaveText(`Pass ${index + 1}`);
+    await expect(card.locator('.pass-sequence')).toHaveCount(0);
     await expect(card.locator('[data-slot="card-content"]')).toHaveCount(1);
     for (const label of [
       'Pass Start',

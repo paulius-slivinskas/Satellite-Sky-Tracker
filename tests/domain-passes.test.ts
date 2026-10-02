@@ -216,3 +216,31 @@ describe('watchlist physical pass edges', () => {
     },
   );
 });
+
+describe('minimum peak elevation', () => {
+  it('replenishes the upcoming list beyond early low passes before applying its global limit', () => {
+    const satellite = { ...sat, noradId: '25544', name: 'ISS', color: '#f00' };
+    vi.mocked(lookAngles).mockImplementation((_sat, time) => {
+      const elapsed = (time - start) / 3600000;
+      const index = Math.floor(elapsed / 4);
+      const phase = elapsed - index * 4;
+      const peak = index < 3 ? 10 : 60;
+      return { elevation: peak * (1 - Math.abs(phase - 2) / 0.25), azimuth: 180 };
+    });
+    const full = predictWatchlistPasses([satellite], observer, start, '3');
+    const expected = full.filter((pass) => pass.maxElevation >= 30).slice(0, 3);
+    expect(expected).toHaveLength(3);
+    expect(
+      predictWatchlistPasses([satellite], observer, start, 'upcoming3').every(
+        (pass) => pass.maxElevation < 30,
+      ),
+    ).toBe(true);
+    expect(predictWatchlistPasses([satellite], observer, start, 'upcoming3', 30)).toEqual(expected);
+    expect(predictWatchlistPasses([satellite], observer, start, 'upcoming5', 30)).toEqual(
+      full.filter((pass) => pass.maxElevation >= 30).slice(0, 5),
+    );
+  });
+  it.each([-1, 91, NaN, Infinity])('rejects invalid elevation threshold %s', (threshold) => {
+    expect(predictWatchlistPasses([sat], observer, start, 'upcoming3', threshold)).toEqual([]);
+  });
+});

@@ -31,6 +31,8 @@ export function defaultView(now = Date.now()): ViewState {
     allLosEnabled: false,
     losOnlyEnabled: false,
     showPassesOnMap: true,
+    passMinElevationEnabled: false,
+    passMinElevationDegrees: 10,
     maxAltitudeEnabled: false,
     maxAltitudeKm: 5000,
     timeFormat: '24h',
@@ -103,6 +105,7 @@ export function normalizeView(value: unknown, base = defaultView()): ViewState {
     'allLosEnabled',
     'losOnlyEnabled',
     'showPassesOnMap',
+    'passMinElevationEnabled',
     'maxAltitudeEnabled',
     'playing',
   ] as const)
@@ -114,6 +117,12 @@ export function normalizeView(value: unknown, base = defaultView()): ViewState {
     ['3h', '5h', '12h', '1', '2', '3', 'upcoming3', 'upcoming5'].includes(raw.passRange)
   )
     result.passRange = raw.passRange as ViewState['passRange'];
+  if (
+    finite(raw.passMinElevationDegrees) &&
+    raw.passMinElevationDegrees >= 0 &&
+    raw.passMinElevationDegrees <= 90
+  )
+    result.passMinElevationDegrees = raw.passMinElevationDegrees;
   if (raw.timeFormat === '12h' || raw.timeFormat === '24h') result.timeFormat = raw.timeFormat;
   if (finite(raw.maxAltitudeKm) && raw.maxAltitudeKm >= 1 && raw.maxAltitudeKm <= 1000000)
     result.maxAltitudeKm = raw.maxAltitudeKm;

@@ -63,6 +63,7 @@ export function startPassCalculation(
   anchor: number,
   range: PassRange,
   onResult: (result: PassResult) => void,
+  minElevation = 0,
 ) {
   let worker: Worker | undefined;
   let active = true;
@@ -84,7 +85,7 @@ export function startPassCalculation(
       finish({ passes: event.data.passes ?? [], loading: false, error: event.data.error ?? null });
     worker.onerror = fail;
     worker.onmessageerror = fail;
-    worker.postMessage({ satellites, observer, time: anchor, range });
+    worker.postMessage({ satellites, observer, time: anchor, range, minElevation });
   } catch {
     fail();
   }
@@ -98,6 +99,7 @@ export function usePasses(
   observer: Observer | null,
   anchor: number,
   range: PassRange,
+  minElevation = 0,
 ) {
   const [result, setResult] = useState<PassResult>({ passes: [], loading: false, error: null });
   useEffect(() => {
@@ -106,7 +108,7 @@ export function usePasses(
       return;
     }
     setResult({ passes: [], loading: true, error: null });
-    return startPassCalculation(satellites, observer, anchor, range, setResult);
-  }, [satellites, observer, anchor, range]);
+    return startPassCalculation(satellites, observer, anchor, range, setResult, minElevation);
+  }, [satellites, observer, anchor, range, minElevation]);
   return result;
 }

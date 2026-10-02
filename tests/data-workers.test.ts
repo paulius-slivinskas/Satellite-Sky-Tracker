@@ -16,7 +16,7 @@ describe('pass worker lifetime', () => {
       },
     );
     const receive = vi.fn();
-    const dispose = startPassCalculation([sat], observer, 0, '1', receive);
+    const dispose = startPassCalculation([sat], observer, 0, '1', receive, 30);
     expect(receive).toHaveBeenCalledWith({
       passes: [],
       loading: false,
@@ -42,11 +42,15 @@ describe('pass worker lifetime', () => {
       observer,
       time: 0,
       range: '1',
+      minElevation: 0,
     });
     workers[0].onmessage!({ data: { passes: [] } });
     expect(workers[0].terminate).toHaveBeenCalledOnce();
     expect(receive).toHaveBeenCalledOnce();
-    const dispose = startPassCalculation([sat], observer, 0, '1', receive);
+    const dispose = startPassCalculation([sat], observer, 0, '1', receive, 30);
+    expect(workers[1].postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ minElevation: 30 }),
+    );
     dispose();
     workers[1].onmessage!({ data: { passes: [] } });
     expect(receive).toHaveBeenCalledOnce();

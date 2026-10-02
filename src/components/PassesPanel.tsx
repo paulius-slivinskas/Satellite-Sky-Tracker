@@ -1,5 +1,5 @@
-import { Button, Card, Chip } from '@heroui/react';
-import type { ReactNode } from 'react';
+import { Button, Card, Chip, Input, Switch, TextField } from '@heroui/react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { SatellitePass, Satellite, ViewState } from '../domain/types';
 import { cardinal, lookAngles } from '../domain/orbits';
 import { Choice, Toggle } from './Controls';
@@ -36,6 +36,11 @@ export function PassesPanel({
   findInSky: (satellite: Satellite, pass: SatellitePass) => void;
   notificationControls?: ReactNode;
 }) {
+  const [elevationInput, setElevationInput] = useState(String(state.passMinElevationDegrees));
+  useEffect(
+    () => setElevationInput(String(state.passMinElevationDegrees)),
+    [state.passMinElevationDegrees],
+  );
   const fmt = (value: number) =>
     new Date(value).toLocaleTimeString([], {
       hour: '2-digit',
@@ -53,6 +58,44 @@ export function PassesPanel({
         selected={state.showPassesOnMap}
         onChange={(value) => patch({ showPassesOnMap: value })}
       />
+      <div className="pass-elevation-filter">
+        {state.passMinElevationEnabled ? (
+          <TextField
+            className="pass-elevation-input"
+            aria-label="Minimum elevation (degrees)"
+            type="number"
+            value={elevationInput}
+            onChange={(value) => {
+              setElevationInput(value);
+              const degrees = Number(value);
+              if (value.trim() && Number.isFinite(degrees) && degrees >= 0 && degrees <= 90)
+                patch({ passMinElevationDegrees: degrees });
+            }}
+          >
+            <Input
+              min={0}
+              max={90}
+              step={1}
+              onBlur={() => setElevationInput(String(state.passMinElevationDegrees))}
+            />
+            <span aria-hidden="true">°</span>
+          </TextField>
+        ) : (
+          <span className="pass-elevation-label">Minimum elevation</span>
+        )}
+        <Switch
+          size="sm"
+          aria-label="Minimum elevation"
+          isSelected={state.passMinElevationEnabled}
+          onChange={(enabled) => patch({ passMinElevationEnabled: enabled })}
+        >
+          <Switch.Content aria-label="Minimum elevation">
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch.Content>
+        </Switch>
+      </div>
       <Choice
         label="Pass Range"
         value={state.passRange}
@@ -79,7 +122,8 @@ export function PassesPanel({
       {notificationControls}
       {state.passRange.startsWith('upcoming') && (
         <p className="muted pass-range-note">
-          The next {state.passRange.slice(-1)} passes across your watchlist, within 72 hours.
+          The next {state.passRange.slice(-1)} {state.passMinElevationEnabled ? 'qualifying ' : ''}
+          passes across your watchlist, within 72 hours.
         </p>
       )}
       {state.passWatchlist.some((id) => !satellites.some((sat) => sat.noradId === id)) && (
@@ -96,7 +140,11 @@ export function PassesPanel({
       {loading && <AppAlert loading>Calculating watchlist passes…</AppAlert>}
       {error && <AppAlert status="danger">{error}</AppAlert>}
       {!loading && !passes.length && state.observer && state.passWatchlist.length > 0 && (
-        <p className="muted">No passes found in the selected range.</p>
+        <p className="muted">
+          {state.passMinElevationEnabled
+            ? `No passes reach ${state.passMinElevationDegrees}° in the selected range.`
+            : 'No passes found in the selected range.'}
+        </p>
       )}
       {!loading && passes.length > 0 && (
         <p className="muted pass-summary" role="status">
@@ -148,18 +196,13 @@ export function PassesPanel({
                       <span className="category-dot" style={{ background: pass.color }} />
                       {pass.satelliteName}
                     </Card.Title>
+                  </div>
+                  <div className="pass-header-meta">
                     <Card.Description className="pass-date">
-                      <span className="pass-sequence">Pass {i + 1}</span> ·
                       <time dateTime={new Date(pass.start).toISOString()}>
                         {new Date(pass.start).toLocaleDateString()}
                       </time>
                     </Card.Description>
-                  </div>
-                  <div className="pass-header-stats">
-                    <span className="pass-peak">{pass.maxElevation.toFixed(1)}°</span>
-                    <span className="muted pass-peak-label">
-                      {pass.startClipped || pass.endClipped ? 'Peak found' : 'Max Elevation'}
-                    </span>
                     {inView && (
                       <Chip className="pass-live-chip" color="success" variant="soft" size="sm">
                         <Chip.Label>In view</Chip.Label>
@@ -172,15 +215,42 @@ export function PassesPanel({
                     {[
                       ['Pass Start', pass.startClipped ? 'Already above horizon' : fmt(pass.start)],
                       ['Pass End', pass.endClipped ? 'Horizon crossing not found' : fmt(pass.end)],
+                      [
+                        pass.startClipped || pass.endClipped ? 'Peak found' : 'Max Elevation',
+                        `${pass.maxElevation.toFixed(1)}°`,
+                      ],
                     ].map(([key, value]) => (
                       <div className="pass-row" key={key}>
                         <dt>{key}</dt>
-                        <dd>{value}</dd>
+                        <dd
+                          className={
+                            key === 'Max Elevation' || key === 'Peak found'
+                              ? 'pass-peak'
+                              : undefined
+                          }
+                        >
+                          {value}
+                        </dd>
                       </div>
                     ))}
                   </dl>
                   <details className="pass-extra-details">
-                    <summary>More details</summary>
+                    <summary>
+                      <span>More details</span>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </summary>
                     <dl className="pass-details">
                       {[
                         ['LOS Appears', fmt(pass.losStart)],
@@ -218,6 +288,7 @@ export function PassesPanel({
                   {satellite && (
                     <Button
                       className="finder-launch"
+                      size="md"
                       fullWidth
                       variant="secondary"
                       onPress={() => findInSky(satellite, pass)}
@@ -227,11 +298,11 @@ export function PassesPanel({
                   )}
                   <Button
                     fullWidth
-                    size="sm"
+                    size="md"
                     variant="secondary"
                     onPress={() => select(pass.noradId)}
                   >
-                    Satellite details
+                    Sat details
                     <svg
                       width="16"
                       height="16"

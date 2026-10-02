@@ -1161,7 +1161,7 @@ h3 {
 
 .pass-summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px 12px;
 }
 .pass-summary-grid .pass-row {
@@ -1228,22 +1228,19 @@ h3 {
   }
 }
 
-.pass-header-stats {
-  margin-left: auto;
-  text-align: right;
+.pass-header-meta {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 2px;
+  gap: 4px;
   flex-shrink: 0;
 }
-.pass-peak {
-  font-size: 18px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+.pass-header-meta .pass-date {
+  margin: 0;
+  text-align: right;
 }
-.pass-peak-label {
-  font-size: 9px;
+.pass-peak {
+  font-variant-numeric: tabular-nums;
 }
 .pass-extra-details summary {
   text-align: center;
@@ -1252,12 +1249,16 @@ h3 {
 .pass-extra-details summary::-webkit-details-marker {
   display: none;
 }
-.pass-extra-details summary::after {
-  content: '⌄';
-  display: inline-block;
-  margin-left: 6px;
+.pass-extra-details summary {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
 }
-.pass-extra-details[open] summary::after {
+.pass-extra-details summary svg {
+  flex-shrink: 0;
+}
+.pass-extra-details[open] summary svg {
   transform: rotate(180deg);
 }
 .pass-item [data-slot='card-footer'] {
@@ -1266,9 +1267,45 @@ h3 {
 
 .pass-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
 }
 .pass-actions .finder-launch {
-  width: 100%;
+  margin-top: 0;
+  min-height: 40px;
+}
+.pass-actions .button {
+  min-height: 40px;
+  flex: 1;
+  min-width: 0;
+  padding-inline: 10px;
+  font-size: 11px;
+}
+
+.pass-elevation-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+}
+.pass-elevation-label {
+  font-size: 12px;
+}
+.pass-elevation-input {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.pass-elevation-input .input {
+  width: 96px;
+  min-width: 0;
+  height: 36px;
+}
+.pass-elevation-input > span {
+  font-size: 13px;
+  color: var(--muted);
 }
