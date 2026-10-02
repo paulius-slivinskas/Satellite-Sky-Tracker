@@ -127,6 +127,17 @@
   color: var(--muted);
   font-size: 11px;
 }
+.satellite-selection-bulk-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.satellite-selection-bulk-actions .button {
+  font-size: 11px;
+  padding-inline: 8px;
+}
 .satellite-selection-search {
   flex: 0 0 auto;
 }

@@ -65,6 +65,14 @@ export function SatelliteSelection({
     [categories, category, query],
   );
   const selected = useMemo(() => new Set(draft), [draft]);
+  const categoryIds = (categories.get(category) ?? []).map((satellite) => satellite.noradId);
+  const selectedCategoryCount = categoryIds.filter((id) => selected.has(id)).length;
+  const selectCategory = (checked: boolean) => {
+    const ids = new Set(categoryIds);
+    setDraft((current) =>
+      checked ? [...new Set([...current, ...ids])] : current.filter((id) => !ids.has(id)),
+    );
+  };
   const appliedIds = [...new Set(value)];
   const summary = appliedIds.length
     ? `${appliedIds.length} selected · ${appliedIds
@@ -180,6 +188,29 @@ export function SatelliteSelection({
                     <Label>Search satellites</Label>
                     <Input ref={searchInput} placeholder="Name or NORAD ID" />
                   </TextField>
+                  <div className="satellite-selection-bulk-actions" aria-label="Category selection">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      isDisabled={
+                        !categoryIds.length || selectedCategoryCount === categoryIds.length
+                      }
+                      onPress={() => selectCategory(true)}
+                    >
+                      Select all
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      isDisabled={!selectedCategoryCount}
+                      onPress={() => selectCategory(false)}
+                    >
+                      Deselect all
+                    </Button>
+                    <span className="satellite-selection-count">
+                      {selectedCategoryCount}/{categoryIds.length} in category
+                    </span>
+                  </div>
                   <p className="satellite-selection-results" role="status">
                     {filtered.length} {filtered.length === 1 ? 'satellite' : 'satellites'}
                   </p>

@@ -69,6 +69,32 @@ async function addPair(page: Page) {
   return dialog;
 }
 
+test('bulk category selection preserves other categories and applies only on confirmation', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.goto(`/?view=${encoded(initial)}`);
+  await openSidebar(page);
+  const dialog = await openSelection(page);
+  const categories = dialog.getByRole('group', { name: 'Satellite categories' });
+  await categories.getByRole('button', { name: 'ISS', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Select all', exact: true }).click();
+  await expect(dialog.getByRole('checkbox', { name: 'ISS (25544)', exact: true })).toBeChecked();
+  await expect(dialog.getByRole('button', { name: 'Select all', exact: true })).toBeDisabled();
+  await categories.getByRole('button', { name: 'Amateur Radio', exact: true }).click();
+  await expect(dialog.getByRole('checkbox', { name: 'AO-91 (43017)', exact: true })).toBeVisible();
+  await dialog.getByRole('textbox', { name: 'Search satellites', exact: true }).fill('no match');
+  await dialog.getByRole('button', { name: 'Select all', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Remove AO-91', exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Deselect all', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Remove AO-91', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Remove ISS', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Deselect all', exact: true })).toBeDisabled();
+  await expect.poll(() => savedList(page)).toEqual([]);
+  await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect.poll(() => savedList(page)).toEqual(['25544']);
+});
+
 test('watchlist category/search selection is transactional, removable, clearable and persistent', async ({
   page,
 }) => {
