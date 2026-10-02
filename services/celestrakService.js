@@ -136,7 +136,9 @@ class CelestrakService {
     now = Date.now,
     minIntervalMs = 1000,
     timeoutMs = 15000,
+    store,
   } = {}) {
+    this.store = store;
     this.file = path.join(cacheDir, 'cache.json');
     this.fetchImpl = fetchImpl;
     this.now = now;
@@ -157,7 +159,9 @@ class CelestrakService {
   }
   async load() {
     try {
-      const saved = JSON.parse(await fs.readFile(this.file, 'utf8'));
+      const raw = this.store ? await this.store.read() : await fs.readFile(this.file, 'utf8');
+      if (raw === null) return;
+      const saved = JSON.parse(raw);
       if (
         saved.version !== 1 ||
         !saved.entries ||
@@ -167,6 +171,8 @@ class CelestrakService {
       )
         throw new Error('Invalid CelesTrak cache file');
       this.state.blockedUntil = saved.blockedUntil;
+      this.state.entries = {};
+      this.state.lastRequestAt = Number.isFinite(saved.lastRequestAt) ? saved.lastRequestAt : 0;
       this.state.blockedReason =
         typeof saved.blockedReason === 'string' ? saved.blockedReason : null;
       for (const [key, entry] of Object.entries(saved.entries)) {
@@ -187,6 +193,7 @@ class CelestrakService {
     }
   }
   async persist() {
+    if (this.store) return this.store.write(JSON.stringify(this.state));
     await fs.mkdir(path.dirname(this.file), { recursive: true });
     const temp = `${this.file}.${randomUUID()}.tmp`;
     try {
@@ -208,7 +215,17 @@ class CelestrakService {
       return Promise.reject(new CelestrakError('Orbital cache service is shutting down'));
     if (this.inflight.size >= 64)
       return Promise.reject(new CelestrakError('Orbital cache is busy; try again later'));
-    const task = this.queue.then(() => this.resolve(item));
+    const task = this.queue.then(() =>
+      this.store
+        ? this.store.runExclusive(async () => {
+            // Reload under the shared lease: another function may have refreshed or paused feeds.
+            await this.ready;
+            await this.load();
+            this.loadError = null;
+            return this.resolve(item);
+          })
+        : this.resolve(item),
+    );
     this.queue = task.catch(() => {});
     const pending = task.finally(() => this.inflight.delete(item.key));
     this.inflight.set(item.key, pending);
@@ -269,10 +286,23 @@ class CelestrakService {
         'Orbital cache could not be saved; upstream refresh was skipped.',
       );
     }
-    const wait = this.minIntervalMs - (Date.now() - this.lastRequestAt);
+    const wait =
+      this.minIntervalMs -
+      (Date.now() - Math.max(this.lastRequestAt, this.state.lastRequestAt || 0));
     if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
     if (this.closed) return this.result(entry, 'Orbital refresh interrupted during shutdown.');
     this.lastRequestAt = Date.now();
+    if (this.store) {
+      this.state.lastRequestAt = this.lastRequestAt;
+      try {
+        await this.persist();
+      } catch {
+        return this.result(
+          previous,
+          'Orbital cache could not be saved; upstream refresh was skipped.',
+        );
+      }
+    }
     const controller = new AbortController();
     this.activeController = controller;
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);

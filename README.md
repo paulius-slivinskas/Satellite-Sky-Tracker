@@ -23,7 +23,24 @@ npm start
 
 Open **http://localhost:8080**. Build before starting: Express serves the generated `dist/` assets, not TypeScript source. Static serving is restricted to `dist/` and optional `public/`; the repository root is not published.
 
-Optional environment variables:
+### Vercel
+
+Import this repository with the Vite preset. `vercel.json` builds `dist/` and routes
+`/api/*` to the Node function in `api/index.js`. Connect an Upstash Redis database
+through the project's Storage tab for Production and Preview. The function accepts
+`KV_REST_API_URL` / `KV_REST_API_TOKEN` or `UPSTASH_REDIS_REST_URL` /
+`UPSTASH_REDIS_REST_TOKEN`; keep these server-only and never prefix them with `VITE_`.
+Redeploy after connecting storage.
+
+Vercel orbital data and weekly attempt deadlines live in Redis, with a shared lease
+to serialize upstream downloads across instances. A storage outage disables new
+upstream requests. Refreshes happen on demand instead of a background interval;
+the traditional Node deployment keeps its file cache and hourly refresh. Radio
+data can use the optional `REDIS_URL`, otherwise each instance caches it in memory.
+
+### Environment variables
+
+Optional variables for the traditional Node deployment:
 
 | Variable              | Purpose                                                                                                             |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------- |
