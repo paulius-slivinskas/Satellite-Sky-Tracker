@@ -23,6 +23,11 @@ module.exports = async (req, res) => {
       throw error;
     });
     const app = await initialization;
+    // Vercel injects the rewrite capture into the query; it is not an upstream parameter.
+    const url = new URL(req.url, 'http://localhost');
+    url.searchParams.delete('__vercelPath');
+    req.url = `${url.pathname}${url.search}`;
+    if (req.query) delete req.query.__vercelPath;
     return app(req, res);
   } catch {
     res.status(503).json({ error: 'API storage is not configured or is unavailable.' });

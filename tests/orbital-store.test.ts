@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
+import { createServer } from 'node:http';
 const require = createRequire(import.meta.url);
 const { OrbitalStore } = require('../lib/orbitalStore');
 const { CelestrakService, WEEK_MS } = require('../services/celestrakService');
@@ -33,6 +34,53 @@ function database() {
   return { values, store, fetchImpl };
 }
 describe('serverless durable orbital storage', () => {
+  it('serves the original API path while stripping only the Vercel rewrite capture', async () => {
+    const db = database();
+    const now = Date.now();
+    db.values.set(
+      'satapp:celestrak:v1',
+      JSON.stringify({
+        version: 1,
+        blockedUntil: null,
+        blockedReason: null,
+        entries: {
+          'elements:group:stations': {
+            kind: 'elements',
+            query: { GROUP: 'stations', FORMAT: 'tle' },
+            body: tle,
+            updatedAt: now,
+            nextAttemptAt: now + WEEK_MS,
+          },
+        },
+      }),
+    );
+    const httpFetch = globalThis.fetch;
+    vi.stubEnv('KV_REST_API_URL', 'https://redis.example');
+    vi.stubEnv('KV_REST_API_TOKEN', 'test');
+    vi.stubEnv('REDIS_URL', '');
+    vi.stubGlobal('fetch', db.fetchImpl);
+    const express = require('express');
+    const handler = require('../api/index');
+    const server = createServer(express().use(handler));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address() as { port: number };
+      const endpoint = `http://127.0.0.1:${address.port}/api/celestrak/elements`;
+      const response = await httpFetch(
+        `${endpoint}?GROUP=stations&__vercelPath=celestrak%2Felements`,
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe(tle);
+      const invalid = await httpFetch(
+        `${endpoint}?GROUP=stations&unknown=1&__vercelPath=celestrak%2Felements`,
+      );
+      expect(invalid.status).toBe(400);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
   it('serializes separate instances and retains data and weekly deadlines after cold starts', async () => {
     const db = database();
     let now = Date.now();

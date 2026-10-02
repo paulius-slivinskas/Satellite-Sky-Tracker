@@ -9,5 +9,5 @@
       "includeFiles": "{config/**,amsat-all-frequencies.csv}"
     }
   },
-  "rewrites": [{ "source": "/api/:path*", "destination": "/api" }]
+  "rewrites": [{ "source": "/api/:__vercelPath*", "destination": "/api" }]
 }
