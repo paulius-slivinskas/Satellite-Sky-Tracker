@@ -1,0 +1,145 @@
+.reception-panel {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+.reception-panel h3 {
+  margin-bottom: 0.5rem;
+}
+.reception-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.reception-history {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.reception-log {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.reception-log:hover {
+  background: var(--surface-secondary);
+}
+.reception-log span:last-child {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+.reception-dialog {
+  width: min(38rem, calc(100vw - 2rem));
+}
+.reception-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 1rem;
+  font-size: 0.85rem;
+}
+.reception-summary dt {
+  opacity: 0.65;
+}
+.reception-summary dd {
+  margin: 0;
+}
+.reception-fields {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0;
+}
+.reception-fields label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+.reception-fields input,
+.reception-fields textarea {
+  color: var(--foreground);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.65rem;
+  width: 100%;
+}
+.reception-fields textarea {
+  resize: vertical;
+}
+.reception-fields input:focus-visible,
+.reception-fields textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.reception-session-line {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.3rem;
+}
+.reception-quality {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.reception-quality legend {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.reception-stars {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0.45rem 0;
+}
+.reception-stars button {
+  width: 44px;
+  height: 44px;
+  font-size: 32px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.reception-stars .star-selected {
+  color: #e5ac36;
+  border-color: #e5ac3666;
+}
+.reception-stars button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.reception-quality p {
+  font-size: 0.8rem;
+}
+.reception-weather {
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+.reception-weather-title {
+  font-weight: 600;
+}
+.reception-weather p {
+  margin: 0.35rem 0;
+}
+.reception-weather small {
+  color: var(--muted);
+}
+.reception-weather a {
+  text-decoration: underline;
+}
+.reception-session-details {
+  font-size: 0.8rem;
+}
+.reception-session-details summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+.reception-session-details dl {
+  margin-top: 0.6rem;
+}

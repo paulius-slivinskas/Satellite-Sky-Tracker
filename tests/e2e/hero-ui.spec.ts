@@ -10,6 +10,7 @@ async function setup(page: Page) {
 }
 async function selectIss(page: Page) {
   await openSidebar(page);
+  await expect(page.locator('.sidebar-stack')).toHaveCSS('transform', 'none');
   await page.getByRole('combobox', { name: 'Smart Search' }).fill('25544');
   await page.getByRole('option', { name: /ISS/ }).click();
   await expect(page.getByRole('complementary', { name: 'ISS satellite details' })).toBeVisible();
@@ -26,6 +27,7 @@ test('satellite and transmitter use HeroUI cards with an exterior, keyboard-oper
   const panel = page.getByRole('complementary', { name: 'ISS satellite details' });
   await expect(panel).toHaveAttribute('data-slot', 'card');
   await expect(panel.locator(':scope > [data-slot="card-header"]')).toHaveCount(1);
+  await panel.getByRole('tab', { name: 'Amateur radio', exact: true }).click();
   await expect(panel.locator('.tx-card')).toHaveAttribute('data-slot', 'card');
   await expect(panel.locator('.tx-card')).toContainText('FM Voice');
   const transmitter = panel.getByRole('button', { name: /FM Voice/ });
@@ -127,8 +129,11 @@ test('pass HeroUI cards retain numerical details and focus/hover selection', asy
   await cards.nth(1).hover();
   await expect(cards.nth(1)).toHaveClass(/pass-item-hover/);
   await expect(cards.first()).not.toHaveClass(/pass-item-hover/);
+  const sidebarClose = page.getByRole('button', { name: 'Close sidebar', exact: true });
+  if (await sidebarClose.isVisible()) await sidebarClose.click();
   await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await openSidebar(page);
   await expect(cards).toHaveCount(3);
   await cards.first().focus();
   await expect(cards.first()).toHaveClass(/pass-item-hover/);

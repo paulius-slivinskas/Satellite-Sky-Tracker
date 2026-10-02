@@ -113,6 +113,7 @@ export async function prepare(page: Page, updatedAt = new Date('2024-02-29T12:30
 export async function openSidebar(page: Page) {
   const button = page.getByRole('button', { name: 'Open sidebar', exact: true });
   if (await button.isVisible()) await button.click();
+  await expect(page.locator('.sidebar-stack')).toHaveCSS('transform', 'none');
 }
 export function encoded(value: unknown) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');

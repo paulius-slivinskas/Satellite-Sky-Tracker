@@ -125,3 +125,51 @@ test('manual altitude survives an in-flight elevation result and Apply', async (
   await expect(altitude).toHaveValue('245');
   await expect(page.locator('.location-trigger')).toContainText('245 m above sea level');
 });
+
+test('mobile observer control stays reachable while the sidebar scrolls and the form fits a short screen', async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.use.hasTouch, 'Touch interaction is verified in the mobile project.');
+  await page.setViewportSize({ width: 390, height: 600 });
+  await prepare(page);
+  await page.context().grantPermissions(['geolocation']);
+  await page.context().setGeolocation({ latitude: 54.6872, longitude: 25.2797 });
+  await page.goto('/');
+  await openSidebar(page);
+  const trigger = page.getByRole('button', { name: 'Observer location', exact: true });
+  await expect(trigger).toBeInViewport({ ratio: 1 });
+  await expect(page.locator('.sidebar-stack')).toHaveCSS('transform', 'none');
+  const before = (await trigger.boundingBox())!;
+  expect(before.y).toBeGreaterThanOrEqual(60);
+  await page.locator('.sidebar-stack').evaluate((el) => {
+    el.scrollTop = 500;
+  });
+  await expect.poll(async () => (await trigger.boundingBox())!.y).toBe(before.y);
+  expect(
+    await trigger.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    }),
+  ).toBe(true);
+  await trigger.click();
+  await expect(page.getByRole('combobox', { name: 'Location', exact: true })).toBeInViewport({
+    ratio: 1,
+  });
+  const useLocation = page.getByRole('button', { name: 'Use my location', exact: true });
+  await expect(useLocation).toBeInViewport({ ratio: 1 });
+  await useLocation.tap();
+  await expect(page.getByRole('combobox', { name: 'Location', exact: true })).toHaveValue(
+    'Current location',
+  );
+  await expect(page.getByRole('spinbutton', { name: 'Latitude', exact: true })).toHaveValue(
+    '54.6872',
+  );
+  await expect(page.locator('.location-trigger')).toContainText('Current location');
+  await expect(page.getByRole('button', { name: 'Close sidebar', exact: true })).toBeInViewport({
+    ratio: 1,
+  });
+  await page.screenshot({
+    path: testInfo.outputPath('mobile-location-access.png'),
+    animations: 'disabled',
+  });
+});

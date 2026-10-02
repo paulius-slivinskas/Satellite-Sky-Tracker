@@ -25,7 +25,9 @@ export default function App() {
   const stateRef = useRef(state);
   stateRef.current = state;
   const [collapsed, setCollapsed] = useState(() => window.innerWidth <= 1100);
+  const [locationOpen, setLocationOpen] = useState(false);
   const [activePass, setActivePass] = useState<number | null>(null);
+  const [selectedPass, setSelectedPass] = useState<number | null>(null);
   const patch = useCallback(
     (value: Partial<ViewState>) => dispatch({ type: 'patch', patch: value }),
     [],
@@ -117,6 +119,7 @@ export default function App() {
   };
   useEffect(() => {
     setActivePass(null);
+    setSelectedPass(null);
   }, [predictions.passes]);
   return (
     <div
@@ -133,9 +136,59 @@ export default function App() {
           setCollapsed((value) => !value);
         }}
       >
-        <span aria-hidden="true">{collapsed ? '☰' : '×'}</span>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          {collapsed ? <path d="M4 6h16M4 12h16M4 18h16" /> : <path d="m6 6 12 12M18 6 6 18" />}
+        </svg>
       </Button>
+      <nav
+        className="mobile-bottom-nav"
+        aria-label="Mobile tracking navigation"
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest('[role="tab"]')) {
+            patch({ selectedNorad: null });
+            setCollapsed(false);
+          }
+        }}
+      >
+        <Tabs
+          selectedKey={state.tab}
+          onSelectionChange={(key) => {
+            patch({
+              tab: String(key) as ViewState['tab'],
+              selectedNorad: null,
+              ...(key === 'passes' ? { simulatedTimeMs: readTime() } : {}),
+            });
+            setCollapsed(false);
+          }}
+        >
+          <Tabs.ListContainer>
+            <Tabs.List aria-label="Mobile tracking sections">
+              {(['filters', 'time', 'passes', 'settings'] as const).map((tab) => (
+                <Tabs.Tab key={tab} id={tab}>
+                  {tab[0].toUpperCase() + tab.slice(1)}
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs.ListContainer>
+        </Tabs>
+      </nav>
       <div className="sidebar-stack">
+        <LocationPanel
+          observer={state.observer}
+          onChange={changeObserver}
+          open={locationOpen}
+          onOpenChange={setLocationOpen}
+        />
         <Card className="sidebar sidebar-main" role="complementary" aria-label="Tracking controls">
           <div className="sidebar-scroll">
             <header className="brand">
@@ -262,10 +315,15 @@ export default function App() {
                   error={predictions.error}
                   time={time}
                   readTime={readTime}
-                  active={activePass}
+                  active={selectedPass ?? activePass}
                   patch={patch}
                   select={select}
                   hover={setActivePass}
+                  choosePass={(index) => {
+                    setSelectedPass(index);
+                    patch({ showPassesOnMap: true, selectedNorad: null });
+                    if (window.innerWidth <= 1100) setCollapsed(true);
+                  }}
                   notificationControls={<PassNotificationControls notifications={notifications} />}
                 />
               </Tabs.Panel>
@@ -302,7 +360,6 @@ export default function App() {
             </Tabs>
           </div>
         </Card>
-        <LocationPanel observer={state.observer} onChange={changeObserver} />
       </div>
       <main className="map-wrap">
         <TrackerMap
@@ -321,11 +378,16 @@ export default function App() {
           passes={predictions.passes}
           passSatellites={passSatellites}
           showPasses={state.showPassesOnMap}
-          activePass={activePass}
+          activePass={selectedPass ?? activePass}
           timeFormat={state.timeFormat}
           view={state.map}
           onSelect={select}
           onViewChange={changeMap}
+          onSetObserverLocation={() => {
+            setCollapsed(false);
+            setLocationOpen(true);
+            if (window.innerWidth <= 1100) patch({ selectedNorad: null });
+          }}
           onHoverPass={setActivePass}
         />
         <CatalogNotice catalog={catalog} onRetry={catalog.refresh} timeFormat={state.timeFormat} />
@@ -334,6 +396,7 @@ export default function App() {
             <SatelliteInfo
               key={selected.noradId}
               sat={selected}
+              observer={state.observer}
               tracked={state.tracked.includes(selected.id)}
               onTrack={() => dispatch({ type: 'toggleTracked', id: selected.id })}
               onClose={() => patch({ selectedNorad: null })}

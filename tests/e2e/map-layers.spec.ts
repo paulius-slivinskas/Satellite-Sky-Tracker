@@ -91,6 +91,7 @@ test('map picker stays above zoom controls and clear of the satellite details pa
   const controls = [
     page.getByRole('button', { name: 'Switch to light mode', exact: true }),
     picker,
+    page.getByRole('button', { name: 'Enable phone heading', exact: true }),
     zoom,
     page.getByRole('button', { name: 'Zoom out', exact: true }),
   ];

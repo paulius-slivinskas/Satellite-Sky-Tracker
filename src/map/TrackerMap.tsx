@@ -1,5 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { Button } from '@heroui/react';
+import { useDeviceOrientation } from '../state/deviceOrientation';
+import { HeadingControl } from '../components/HeadingControl';
 import { ThemeControl } from '../components/ThemeControl';
 import L from 'leaflet';
 import { maplibreGL } from '@maplibre/maplibre-gl-leaflet';
@@ -45,6 +47,7 @@ interface Props {
   onSelect: (norad: string) => void;
   onViewChange: (view: ViewState['map']) => void;
   onHoverPass: (index: number | null) => void;
+  onSetObserverLocation: () => void;
 }
 interface PassLayers {
   lines: L.Polyline[];
@@ -61,6 +64,7 @@ const escape = (value: string) =>
 setWorkerUrl(mapWorkerUrl);
 export const TrackerMap = memo(function TrackerMap(props: Props) {
   const [mapLayer, setMapLayer] = useMapLayer();
+  const orientation = useDeviceOrientation();
   const [zoomLimits, setZoomLimits] = useState({ atMin: false, atMax: false });
   const container = useRef<HTMLDivElement>(null);
   const latest = useRef(props);
@@ -366,7 +370,18 @@ export const TrackerMap = memo(function TrackerMap(props: Props) {
     const e = engine.current!;
     e.observer.clearLayers();
     if (props.observer)
-      for (const shift of WORLD_SHIFTS)
+      for (const shift of WORLD_SHIFTS) {
+        if (orientation.heading !== null)
+          L.marker([props.observer.lat, props.observer.lon + shift], {
+            interactive: false,
+            keyboard: false,
+            icon: L.divIcon({
+              className: 'observer-heading',
+              iconSize: [44, 44],
+              iconAnchor: [22, 22],
+              html: `<svg width="44" height="44" viewBox="0 0 44 44" aria-label="Phone heading ${Math.round(orientation.heading)} degrees" style="transform:rotate(${orientation.heading}deg)"><path d="M22 2 34 25 22 20 10 25Z" fill="#23c55e" fill-opacity=".4" stroke="#23c55e"/></svg>`,
+            }),
+          }).addTo(e.observer);
         L.circleMarker([props.observer.lat, props.observer.lon + shift], {
           radius: 4,
           color: '#fff',
@@ -375,7 +390,8 @@ export const TrackerMap = memo(function TrackerMap(props: Props) {
           weight: 2,
           interactive: false,
         }).addTo(e.observer);
-  }, [props.observer]);
+      }
+  }, [props.observer, orientation.heading]);
   useEffect(() => {
     const e = engine.current!;
     e.passes.clearLayers();
@@ -530,6 +546,11 @@ export const TrackerMap = memo(function TrackerMap(props: Props) {
       <div className="map-controls" role="group" aria-label="Map controls">
         <ThemeControl theme={props.theme} onChange={props.onThemeChange} />
         <MapLayerControl layer={mapLayer} onChange={setMapLayer} />
+        <HeadingControl
+          {...orientation}
+          hasObserver={!!props.observer}
+          onSetLocation={props.onSetObserverLocation}
+        />
         <div className="map-zoom-controls">
           {(['in', 'out'] as const).map((direction) => (
             <Button

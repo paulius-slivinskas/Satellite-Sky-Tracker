@@ -37,8 +37,12 @@ function OpenAsyncSuggestions({
 export function LocationPanel({
   observer,
   onChange,
+  open,
+  onOpenChange,
 }: {
   observer: Observer | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onChange: (observer: Observer | null) => void;
 }) {
   const [query, setQuery] = useState(observer?.name ?? '');
@@ -166,6 +170,12 @@ export function LocationPanel({
   };
   const locate = async () => {
     cancelPending();
+    if (!window.isSecureContext) {
+      setError(
+        'Current location requires HTTPS on your phone. Search for a place or enter coordinates instead.',
+      );
+      return;
+    }
     const id = geoRequest.current;
     setBusy(true);
     setError('');
@@ -189,7 +199,12 @@ export function LocationPanel({
       : suggestions;
   return (
     <aside className="sidebar sidebar-location">
-      <Accordion className="location-details" hideSeparator defaultExpandedKeys={[]}>
+      <Accordion
+        className="location-details"
+        hideSeparator
+        expandedKeys={open ? ['observer-location'] : []}
+        onExpandedChange={(keys) => onOpenChange(keys.size > 0)}
+      >
         <Accordion.Item id="observer-location">
           <Accordion.Heading>
             <Accordion.Trigger className="location-trigger" aria-label="Observer location">
@@ -206,6 +221,10 @@ export function LocationPanel({
           </Accordion.Heading>
           <Accordion.Panel>
             <Accordion.Body className="location-content">
+              <Button variant="secondary" fullWidth onPress={() => void locate()} isDisabled={busy}>
+                {busy ? 'Locating…' : 'Use my location'}
+              </Button>
+              {error && <AppAlert status="warning">{error}</AppAlert>}
               <ComboBox
                 className="field"
                 inputValue={query}
@@ -290,14 +309,10 @@ export function LocationPanel({
               <p className="muted field-helper">
                 Adjust altitude if your actual position is above ground level.
               </p>
-              {error && <AppAlert status="warning">{error}</AppAlert>}
               <Button onPress={apply} fullWidth>
                 Apply location
               </Button>
               <div className="button-row">
-                <Button variant="secondary" onPress={() => void locate()} isDisabled={busy}>
-                  {busy ? 'Locating…' : 'Use my location'}
-                </Button>
                 <Button
                   variant="ghost"
                   onPress={() => {

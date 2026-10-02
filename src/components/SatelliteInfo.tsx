@@ -1,10 +1,12 @@
-import { Accordion, Button, Card, Chip, CloseButton, Separator, Tooltip } from '@heroui/react';
+import { Accordion, Button, Card, Chip, CloseButton, Tabs, Tooltip } from '@heroui/react';
 import { useEffect, useState } from 'react';
 import { loadSatelliteInfo, type SatelliteInfo as Info } from '../data/radio';
 import { orbitalParams } from '../domain/orbits';
-import type { Frequency, Satellite } from '../domain/types';
+import type { Frequency, Observer, Satellite } from '../domain/types';
 import { satelliteAliases } from '../domain/satelliteNames';
 import { AppAlert } from './AppAlert';
+import { ReceptionPanel } from './ReceptionPanel';
+import { SatelliteFinder } from './SatelliteFinder';
 const fmt = (value: number, digits: number, unit: string) =>
   Number.isFinite(value) ? `${value.toFixed(digits)} ${unit}` : 'N/A';
 function frequency(range?: Frequency) {
@@ -20,8 +22,10 @@ export function SatelliteInfo({
   onTrack,
   onClose,
   onShare,
+  observer = null,
 }: {
   sat: Satellite;
+  observer?: Observer | null;
   tracked: boolean;
   onTrack: () => void;
   onClose: () => void;
@@ -161,101 +165,128 @@ export function SatelliteInfo({
           </div>
         </Card.Header>
         <Card.Content className="sat-info-content">
-          {satelliteAliases(sat).length > 0 && (
-            <p className="satellite-aliases">Also known as: {satelliteAliases(sat).join(' · ')}</p>
-          )}
-          {shareStatus && (
-            <AppAlert status={shareStatus === 'Link copied' ? 'success' : 'warning'}>
-              {shareStatus}
-            </AppAlert>
-          )}
-          <dl className="sat-kv-grid">
-            {rows.map(([label, value]) => (
-              <div className="sat-kv" key={label}>
-                <dt>{label}</dt>
-                <dd>
-                  {label === 'Status' ? (
-                    <Chip
-                      size="sm"
-                      variant="soft"
-                      color={cat.OPSTAT === '+' ? 'success' : 'default'}
-                    >
-                      {value}
-                    </Chip>
-                  ) : (
-                    value
-                  )}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <Separator className="detail-separator" />
-          <h3>Amateur Radio</h3>
-          {loading && <AppAlert loading>Loading radio information…</AppAlert>}
-          {info?.warning && (
-            <AppAlert
-              status="warning"
-              action={
-                <Button size="sm" variant="ghost" onPress={() => setRetry((n) => n + 1)}>
-                  Retry
-                </Button>
-              }
-            >
-              {info.warning}
-            </AppAlert>
-          )}
-          {!loading && !info?.radio?.transmitters.length && (
-            <p className="muted">No radio transmitter data available.</p>
-          )}
-          <Accordion
-            className="tx-list"
-            allowsMultipleExpanded
-            hideSeparator
-            defaultExpandedKeys={[]}
-          >
-            {info?.radio?.transmitters.map((tx, index) => (
-              <Card className="tx-card" variant="secondary" key={`${tx.id}-${index}`}>
-                <Accordion.Item id={`${tx.id}-${index}`}>
-                  <Accordion.Heading>
-                    <Accordion.Trigger className="tx-trigger">
-                      <span className="tx-header">
-                        <span className="tx-title">{tx.label || 'Transmitter'}</span>
-                        <span className="tx-source">{tx.source || 'Unknown source'}</span>
-                      </span>
-                      <Accordion.Indicator />
-                    </Accordion.Trigger>
-                  </Accordion.Heading>
-                  <Accordion.Panel>
-                    <Accordion.Body className="tx-body">
-                      <dl className="tx-details">
-                        {[
-                          ['Type', tx.typeHint],
-                          ['Uplink', frequency(tx.uplink)],
-                          ['Downlink', frequency(tx.downlink)],
-                          ['Beacon', frequency(tx.beacon)],
-                          ['Callsign', tx.callsign || 'N/A'],
-                          ['Mode', tx.mode],
-                          ['Status', tx.status],
-                          ['Notes', tx.notes || 'N/A'],
-                        ].map(([key, value]) => (
-                          <div className="tx-row" key={key}>
-                            <dt>{key}</dt>
-                            <dd>{value}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </Accordion.Body>
-                  </Accordion.Panel>
-                </Accordion.Item>
-              </Card>
-            ))}
-          </Accordion>
-          {info?.radio?.status.provider === 'amsat' && (
-            <p className="muted">AMSAT reports: {info.radio.status.recentReportsCount}</p>
-          )}
-          {info?.radio?.status.lastReport && (
-            <p className="muted">{info.radio.status.lastReport.replace(/<[^>]*>/g, ' ')}</p>
-          )}
+          <Tabs className="sat-info-tabs" defaultSelectedKey="details">
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="Satellite information sections">
+                <Tabs.Tab id="details">
+                  Sat details
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="radio">
+                  Amateur radio
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="report">
+                  Signal report
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs.ListContainer>
+            <Tabs.Panel id="details">
+              <SatelliteFinder satellite={sat} observer={observer} />
+              {satelliteAliases(sat).length > 0 && (
+                <p className="satellite-aliases">
+                  Also known as: {satelliteAliases(sat).join(' · ')}
+                </p>
+              )}
+              {shareStatus && (
+                <AppAlert status={shareStatus === 'Link copied' ? 'success' : 'warning'}>
+                  {shareStatus}
+                </AppAlert>
+              )}
+              <dl className="sat-kv-grid">
+                {rows.map(([label, value]) => (
+                  <div className="sat-kv" key={label}>
+                    <dt>{label}</dt>
+                    <dd>
+                      {label === 'Status' ? (
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          color={cat.OPSTAT === '+' ? 'success' : 'default'}
+                        >
+                          {value}
+                        </Chip>
+                      ) : (
+                        value
+                      )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </Tabs.Panel>
+            <Tabs.Panel id="radio">
+              <h3>Amateur Radio</h3>
+              {loading && <AppAlert loading>Loading radio information…</AppAlert>}
+              {info?.warning && (
+                <AppAlert
+                  status="warning"
+                  action={
+                    <Button size="sm" variant="ghost" onPress={() => setRetry((n) => n + 1)}>
+                      Retry
+                    </Button>
+                  }
+                >
+                  {info.warning}
+                </AppAlert>
+              )}
+              {!loading && !info?.radio?.transmitters.length && (
+                <p className="muted">No radio transmitter data available.</p>
+              )}
+              <Accordion
+                className="tx-list"
+                allowsMultipleExpanded
+                hideSeparator
+                defaultExpandedKeys={[]}
+              >
+                {info?.radio?.transmitters.map((tx, index) => (
+                  <Card className="tx-card" variant="secondary" key={`${tx.id}-${index}`}>
+                    <Accordion.Item id={`${tx.id}-${index}`}>
+                      <Accordion.Heading>
+                        <Accordion.Trigger className="tx-trigger">
+                          <span className="tx-header">
+                            <span className="tx-title">{tx.label || 'Transmitter'}</span>
+                            <span className="tx-source">{tx.source || 'Unknown source'}</span>
+                          </span>
+                          <Accordion.Indicator />
+                        </Accordion.Trigger>
+                      </Accordion.Heading>
+                      <Accordion.Panel>
+                        <Accordion.Body className="tx-body">
+                          <dl className="tx-details">
+                            {[
+                              ['Type', tx.typeHint],
+                              ['Uplink', frequency(tx.uplink)],
+                              ['Downlink', frequency(tx.downlink)],
+                              ['Beacon', frequency(tx.beacon)],
+                              ['Callsign', tx.callsign || 'N/A'],
+                              ['Mode', tx.mode],
+                              ['Status', tx.status],
+                              ['Notes', tx.notes || 'N/A'],
+                            ].map(([key, value]) => (
+                              <div className="tx-row" key={key}>
+                                <dt>{key}</dt>
+                                <dd>{value}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </Accordion.Body>
+                      </Accordion.Panel>
+                    </Accordion.Item>
+                  </Card>
+                ))}
+              </Accordion>
+              {info?.radio?.status.provider === 'amsat' && (
+                <p className="muted">AMSAT reports: {info.radio.status.recentReportsCount}</p>
+              )}
+              {info?.radio?.status.lastReport && (
+                <p className="muted">{info.radio.status.lastReport.replace(/<[^>]*>/g, ' ')}</p>
+              )}
+            </Tabs.Panel>
+            <Tabs.Panel id="report">
+              <ReceptionPanel sat={sat} observer={observer} />
+            </Tabs.Panel>
+          </Tabs>
         </Card.Content>
       </Card>
     </>

@@ -1,7 +1,7 @@
 import { Button, Card, Chip } from '@heroui/react';
 import type { ReactNode } from 'react';
 import type { SatellitePass, Satellite, ViewState } from '../domain/types';
-import { cardinal } from '../domain/orbits';
+import { cardinal, lookAngles } from '../domain/orbits';
 import { Choice, Toggle } from './Controls';
 import { SatelliteSelection } from './SatelliteSelection';
 import { AppAlert } from './AppAlert';
@@ -17,6 +17,7 @@ export function PassesPanel({
   patch,
   select,
   hover,
+  choosePass,
   notificationControls,
 }: {
   state: ViewState;
@@ -30,6 +31,7 @@ export function PassesPanel({
   patch: (value: Partial<ViewState>) => void;
   select: (norad: string | null) => void;
   hover: (index: number | null) => void;
+  choosePass: (index: number) => void;
   notificationControls?: ReactNode;
 }) {
   const fmt = (value: number) =>
@@ -108,6 +110,9 @@ export function PassesPanel({
       <ul className="passes-list">
         {passes.map((pass, i) => {
           const inView = time >= pass.losStart && time <= pass.losEnd;
+          const satellite = satellites.find((sat) => sat.noradId === pass.noradId);
+          const current =
+            satellite && state.observer ? lookAngles(satellite, time, state.observer) : null;
           return (
             <li key={`${pass.noradId}-${pass.start}`}>
               <Card
@@ -116,6 +121,20 @@ export function PassesPanel({
                 data-pass-start={pass.start}
                 data-pass-end={pass.end}
                 tabIndex={0}
+                role="button"
+                aria-label={`Show pass ${i + 1} on map`}
+                aria-pressed={active === i}
+                onClick={(event) => {
+                  if ((event.target as HTMLElement).closest('button, details')) return;
+                  choosePass(i);
+                }}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    choosePass(i);
+                  }
+                }}
                 onMouseEnter={() => hover(i)}
                 onMouseLeave={() => hover(null)}
                 onFocus={() => hover(i)}
@@ -134,31 +153,23 @@ export function PassesPanel({
                       </time>
                     </Card.Description>
                   </div>
-                  {inView && (
-                    <Chip className="pass-live-chip" color="success" variant="soft" size="sm">
-                      <Chip.Label>In view</Chip.Label>
-                    </Chip>
-                  )}
+                  <div className="pass-header-stats">
+                    <span className="pass-peak">{pass.maxElevation.toFixed(1)}°</span>
+                    <span className="muted pass-peak-label">
+                      {pass.startClipped || pass.endClipped ? 'Peak found' : 'Max Elevation'}
+                    </span>
+                    {inView && (
+                      <Chip className="pass-live-chip" color="success" variant="soft" size="sm">
+                        <Chip.Label>In view</Chip.Label>
+                      </Chip>
+                    )}
+                  </div>
                 </Card.Header>
                 <Card.Content className="pass-content">
-                  <dl className="pass-details">
+                  <dl className="pass-details pass-summary-grid">
                     {[
                       ['Pass Start', pass.startClipped ? 'Already above horizon' : fmt(pass.start)],
                       ['Pass End', pass.endClipped ? 'Horizon crossing not found' : fmt(pass.end)],
-                      [
-                        pass.startClipped || pass.endClipped ? 'Peak found' : 'Max Elevation',
-                        `${pass.maxElevation.toFixed(1)}°`,
-                      ],
-                      ['Rise Direction', direction(pass.riseAz)],
-                      ['Set Direction', direction(pass.setAz)],
-                      ['Max Elevation Az', direction(pass.maxAz)],
-                      ...(Math.abs(pass.losStart - pass.start) > 1500 ||
-                      Math.abs(pass.losEnd - pass.end) > 1500
-                        ? [
-                            ['LOS Appears', fmt(pass.losStart)],
-                            ['LOS Disappears', fmt(pass.losEnd)],
-                          ]
-                        : []),
                     ].map(([key, value]) => (
                       <div className="pass-row" key={key}>
                         <dt>{key}</dt>
@@ -166,6 +177,34 @@ export function PassesPanel({
                       </div>
                     ))}
                   </dl>
+                  <details className="pass-extra-details">
+                    <summary>More details</summary>
+                    <dl className="pass-details">
+                      {[
+                        ['LOS Appears', fmt(pass.losStart)],
+                        ['LOS Disappears', fmt(pass.losEnd)],
+                        ['Rise Direction', direction(pass.riseAz)],
+                        ['Set Direction', direction(pass.setAz)],
+                        ['Max Elevation Az', direction(pass.maxAz)],
+                      ].map(([key, value]) => (
+                        <div className="pass-row" key={key}>
+                          <dt>{key}</dt>
+                          <dd>{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="muted pass-current-label">Position at map time · {fmt(time)}</p>
+                    <dl className="pass-details" aria-live="off">
+                      <div className="pass-row">
+                        <dt>Current Azimuth</dt>
+                        <dd>{current ? direction(current.azimuth) : 'N/A'}</dd>
+                      </div>
+                      <div className="pass-row">
+                        <dt>Current Elevation</dt>
+                        <dd>{current ? `${current.elevation.toFixed(1)}°` : 'N/A'}</dd>
+                      </div>
+                    </dl>
+                  </details>
                   {(pass.startClipped || pass.endClipped) && (
                     <p className="muted">
                       Full pass boundaries could not be determined; the peak shown is the highest
@@ -174,8 +213,26 @@ export function PassesPanel({
                   )}
                 </Card.Content>
                 <Card.Footer>
-                  <Button size="sm" variant="ghost" onPress={() => select(pass.noradId)}>
+                  <Button
+                    fullWidth
+                    size="sm"
+                    variant="secondary"
+                    onPress={() => select(pass.noradId)}
+                  >
                     Satellite details
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12h14m-6-6 6 6-6 6" />
+                    </svg>
                   </Button>
                 </Card.Footer>
               </Card>

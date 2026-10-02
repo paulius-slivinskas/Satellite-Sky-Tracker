@@ -1,0 +1,69 @@
+.heading-control {
+  position: relative;
+}
+.heading-status {
+  position: absolute;
+  right: 46px;
+  top: 0;
+  width: max-content;
+  max-width: min(220px, 60vw);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--overlay);
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px #0003;
+}
+.observer-heading {
+  background: transparent;
+  border: 0;
+}
+.observer-heading svg {
+  overflow: visible;
+}
+
+.heading-label {
+  position: absolute;
+  right: 52px;
+  white-space: nowrap;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--overlay);
+  color: var(--foreground);
+  font-size: 11px;
+  pointer-events: none;
+}
+.heading-status {
+  z-index: 2;
+}
+.heading-status p {
+  margin-bottom: 8px;
+}
+.heading-control svg[data-inactive] {
+  opacity: 0.45;
+}
+.heading-notification {
+  position: fixed;
+  z-index: 1450;
+  right: 16px;
+  bottom: 28px;
+  width: min(380px, calc(100vw - 32px));
+}
+.heading-notification .app-alert {
+  background: color-mix(in srgb, #ec4899 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, #ec4899 60%, transparent);
+  box-shadow: 0 4px 24px #0003;
+}
+.heading-notification .alert__indicator {
+  color: #ec4899;
+}
+.heading-control[data-inactive] .heading-label {
+  display: none;
+}
+@media (max-width: 680px) {
+  .heading-notification {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+}
