@@ -28,6 +28,9 @@ test('a pass starting nine seconds before the range ends retains its full durati
   await expect(row('Pass Start')).toHaveText('18:22:42');
   await expect(row('Pass End')).toHaveText('18:29:40');
   await expect(cards.locator('.pass-peak')).toHaveText('5.4°');
+  const header = (await cards.locator('.pass-header').boundingBox())!;
+  const peak = (await cards.locator('.pass-header-stats').boundingBox())!;
+  expect(peak.x + peak.width).toBeCloseTo(header.x + header.width, 0);
   const start = Number(await cards.getAttribute('data-pass-start'));
   expect(anchor + 3 * 3600000 - start).toBeGreaterThan(8000);
   expect(anchor + 3 * 3600000 - start).toBeLessThan(10000);

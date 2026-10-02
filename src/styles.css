@@ -595,6 +595,7 @@ h3 {
   cursor: pointer;
 }
 .pass-header {
+  width: 100%;
   display: flex;
   flex-direction: row;
   align-items: flex-start;
@@ -621,6 +622,7 @@ h3 {
   font-size: 11px;
 }
 .pass-heading {
+  flex: 1;
   min-width: 0;
 }
 .pass-date {
@@ -1227,6 +1229,8 @@ h3 {
 }
 
 .pass-header-stats {
+  margin-left: auto;
+  text-align: right;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
