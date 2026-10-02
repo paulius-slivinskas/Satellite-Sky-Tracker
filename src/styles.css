@@ -1309,3 +1309,12 @@ h3 {
   font-size: 13px;
   color: var(--muted);
 }
+
+.pass-navigation {
+  justify-content: center;
+}
+.pass-navigation .button {
+  width: 100%;
+  padding-inline: 8px;
+  font-size: 11px;
+}

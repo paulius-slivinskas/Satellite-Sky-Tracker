@@ -17,6 +17,7 @@ test('minimum elevation replaces its label with an input and filters qualifying 
   await expect(input).toBeVisible();
   await expect(page.locator('.pass-elevation-label')).toHaveCount(0);
   await input.fill('30');
+  await input.press('Tab');
   await expect(page.locator('.pass-item')).toHaveCount(3);
   await expect
     .poll(async () =>
@@ -30,17 +31,27 @@ test('minimum elevation replaces its label with an input and filters qualifying 
   const toggleBox = (await toggle.boundingBox())!;
   expect(inputBox.x + inputBox.width).toBeLessThan(toggleBox.x);
   const card = page.locator('.pass-item').first();
-  await expect(card.locator('.pass-summary-grid .pass-row')).toHaveCount(3);
-  const actions = await card.locator('.pass-actions button').all();
-  expect(actions).toHaveLength(2);
-  const left = (await actions[0].boundingBox())!;
-  const right = (await actions[1].boundingBox())!;
-  expect(Math.abs(left.y - right.y)).toBeLessThan(2);
-  expect(left.x + left.width).toBeLessThan(right.x);
+  await expect(card.locator('.pass-content > .pass-summary-grid .pass-row')).toHaveCount(3);
+  await card.locator('summary').click();
+  await expect(card.getByText('LOS Appears', { exact: true })).toHaveCount(0);
+  await expect(card.getByText('LOS Disappears', { exact: true })).toHaveCount(0);
+  await expect(card.locator('.pass-extra-details dl').first().locator('dt')).toHaveText([
+    'Rise Direction',
+    'Max Elevation Az',
+    'Set Direction',
+  ]);
+  const row = card.locator('.pass-extra-details dl').last();
+  const az = (await row.locator('.pass-row').nth(0).boundingBox())!;
+  const el = (await row.locator('.pass-row').nth(1).boundingBox())!;
+  const nav = (await row.getByRole('button', { name: 'Navigate', exact: true }).boundingBox())!;
+  expect(Math.abs(az.y - el.y)).toBeLessThan(2);
+  expect(nav.x).toBeGreaterThan(el.x);
+  expect(nav.y).toBeLessThan(el.y + el.height);
   const label = (await card.locator('summary span').boundingBox())!;
   const chevron = (await card.locator('summary svg').boundingBox())!;
   expect(chevron.x - label.x - label.width).toBeLessThan(8);
   expect(Math.abs(label.y + label.height / 2 - chevron.y - chevron.height / 2)).toBeLessThan(2);
+  await card.scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath('pass-minimum-elevation.png') });
   await expect
     .poll(() =>

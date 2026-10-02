@@ -71,8 +71,8 @@ test('compact pass summary keeps predictions fixed while current position follow
   );
   await openSidebar(page);
   const card = page.locator('.pass-item').first();
-  await expect(card.locator('.pass-summary-grid .pass-row')).toHaveCount(3);
-  const start = await card.locator('.pass-summary-grid dd').first().innerText();
+  await expect(card.locator('.pass-content > .pass-summary-grid .pass-row')).toHaveCount(3);
+  const start = await card.locator('.pass-content > .pass-summary-grid dd').first().innerText();
   await card.locator('summary').click();
   const elevation = card
     .locator('.pass-row')
@@ -82,7 +82,7 @@ test('compact pass summary keeps predictions fixed while current position follow
   expect(before).not.toBe('N/A');
   await page.clock.fastForward(60000);
   await expect(elevation).not.toHaveText(before);
-  await expect(card.locator('.pass-summary-grid dd').first()).toHaveText(start);
+  await expect(card.locator('.pass-content > .pass-summary-grid dd').first()).toHaveText(start);
 });
 
 test('trajectory selection opens satellite details and closing them preserves pass and satellite selection', async ({
@@ -115,7 +115,8 @@ test('trajectory selection opens satellite details and closing them preserves pa
   await expect(card).toHaveAttribute('aria-pressed', 'true');
   const start = Number(await card.getAttribute('data-pass-start'));
   const end = Number(await card.getAttribute('data-pass-end'));
-  await card.getByRole('button', { name: 'Find in the sky', exact: true }).click();
+  await card.locator('summary').click();
+  await card.getByRole('button', { name: 'Navigate', exact: true }).click();
   const finder = page.getByRole('dialog', { name: 'Satellite sky finder' });
   await expect(finder.getByRole('region', { name: 'Pass progress' })).toBeVisible();
   await expect(finder.getByText(/Not started yet/)).toBeVisible();

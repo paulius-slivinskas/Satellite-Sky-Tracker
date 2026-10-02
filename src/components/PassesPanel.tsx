@@ -251,13 +251,11 @@ export function PassesPanel({
                         <path d="m6 9 6 6 6-6" />
                       </svg>
                     </summary>
-                    <dl className="pass-details">
+                    <dl className="pass-details pass-summary-grid">
                       {[
-                        ['LOS Appears', fmt(pass.losStart)],
-                        ['LOS Disappears', fmt(pass.losEnd)],
                         ['Rise Direction', direction(pass.riseAz)],
-                        ['Set Direction', direction(pass.setAz)],
                         ['Max Elevation Az', direction(pass.maxAz)],
+                        ['Set Direction', direction(pass.setAz)],
                       ].map(([key, value]) => (
                         <div className="pass-row" key={key}>
                           <dt>{key}</dt>
@@ -266,7 +264,7 @@ export function PassesPanel({
                       ))}
                     </dl>
                     <p className="muted pass-current-label">Position at map time · {fmt(time)}</p>
-                    <dl className="pass-details" aria-live="off">
+                    <dl className="pass-details pass-summary-grid" aria-live="off">
                       <div className="pass-row">
                         <dt>Current Azimuth</dt>
                         <dd>{current ? direction(current.azimuth) : 'N/A'}</dd>
@@ -275,6 +273,20 @@ export function PassesPanel({
                         <dt>Current Elevation</dt>
                         <dd>{current ? `${current.elevation.toFixed(1)}°` : 'N/A'}</dd>
                       </div>
+                      {satellite && (
+                        <div className="pass-row pass-navigation">
+                          <dt className="sr-only">Sky finder</dt>
+                          <dd>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onPress={() => findInSky(satellite, pass)}
+                            >
+                              Navigate
+                            </Button>
+                          </dd>
+                        </div>
+                      )}
                     </dl>
                   </details>
                   {(pass.startClipped || pass.endClipped) && (
@@ -285,17 +297,6 @@ export function PassesPanel({
                   )}
                 </Card.Content>
                 <Card.Footer className="pass-actions">
-                  {satellite && (
-                    <Button
-                      className="finder-launch"
-                      size="md"
-                      fullWidth
-                      variant="secondary"
-                      onPress={() => findInSky(satellite, pass)}
-                    >
-                      Find in the sky
-                    </Button>
-                  )}
                   <Button
                     fullWidth
                     size="md"
