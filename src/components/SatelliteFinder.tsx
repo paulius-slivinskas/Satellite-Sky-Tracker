@@ -6,6 +6,7 @@ import { passProgress, shortestTurn } from '../domain/finder';
 import { predictPasses } from '../domain/passes';
 import type { Observer, Satellite, SatellitePass } from '../domain/types';
 import { useDeviceOrientation } from '../state/deviceOrientation';
+import { AppAlert } from './AppAlert';
 import './SatelliteFinder.css';
 
 export function SatelliteFinder({
@@ -56,6 +57,26 @@ function FinderView({
   pass?: SatellitePass;
 }) {
   const orientation = useDeviceOrientation();
+  const [attempted, setAttempted] = useState(false);
+  const [notice, setNotice] = useState<{ id: number; body: string } | null>(null);
+  useEffect(() => {
+    if (!attempted) return;
+    if (orientation.status === 'active') {
+      setAttempted(false);
+      setNotice(null);
+    } else if (!['idle', 'requesting'].includes(orientation.status)) {
+      setNotice({
+        id: Date.now(),
+        body: orientation.error ?? 'No compass readings are available on this device.',
+      });
+      setAttempted(false);
+    }
+  }, [attempted, orientation.status, orientation.error]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const [now, setNow] = useState(Date.now);
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -138,30 +159,25 @@ function FinderView({
           aria-label="Close sky finder"
         />
       </header>
+      {notice && (
+        <div className="finder-notification">
+          <AppAlert
+            status="danger"
+            title="Compass unavailable"
+            dismissKey={String(notice.id)}
+            onDismiss={() => setNotice(null)}
+          >
+            {notice.body}
+          </AppAlert>
+        </div>
+      )}
       <div className="finder-body">
-        <button
-          type="button"
-          className="finder-compass"
-          aria-label={sensorActive ? 'Compass active' : 'Enable compass direction'}
-          aria-pressed={sensorActive}
-          disabled={orientation.status === 'requesting'}
-          onClick={() => void orientation.requestPermission()}
-        >
-          <svg viewBox="0 0 240 240" aria-hidden="true">
+        <div className="finder-compass" data-active={sensorActive}>
+          <svg viewBox="0 0 240 240" aria-hidden="true" className="finder-compass-dial">
             <g className="finder-compass-ring">
               <circle cx="120" cy="120" r="114" />
-              {Array.from({ length: 32 }, (_, index) => (
-                <line
-                  key={index}
-                  x1="120"
-                  y1="6"
-                  x2="120"
-                  y2={index % 4 === 0 ? '17' : '11'}
-                  transform={`rotate(${index * 11.25 - heading} 120 120)`}
-                />
-              ))}
-              {['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'].map((label, index) => {
-                const angle = ((index * 45 - heading) * Math.PI) / 180;
+              {['N', 'E', 'S', 'W'].map((label, index) => {
+                const angle = ((index * 90 - heading) * Math.PI) / 180;
                 return (
                   <text
                     key={label}
@@ -176,22 +192,47 @@ function FinderView({
               })}
             </g>
             <g transform={`rotate(${turn} 120 120)`} className="finder-compass-arrow">
-              <svg
-                x="86"
-                y="86"
-                width="68"
-                height="68"
-                viewBox="0 0 24 24"
+              <path
+                d="M120 65 L138 126 Q138 129 135 128 L120 122 L105 128 Q102 129 102 126 Z"
+                fill="currentColor"
+              />
+              <path
+                d="M120 122 V161"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.4"
-                strokeLinejoin="round"
-              >
-                <path d="m12 3 7 17-7-4-7 4Z" />
-              </svg>
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                opacity="0.5"
+              />
             </g>
           </svg>
-        </button>
+          {!sensorActive && (
+            <Button
+              className="finder-enable"
+              size="sm"
+              variant="secondary"
+              aria-label="Enable compass"
+              isDisabled={orientation.status === 'requesting'}
+              onPress={() => {
+                setNotice(null);
+                setAttempted(true);
+                void orientation.requestPermission();
+              }}
+            >
+              {orientation.status === 'requesting' ? 'Enabling…' : 'Enable'}
+            </Button>
+          )}
+        </div>
+        <dl className="finder-live-position" aria-label="Live satellite position">
+          <div>
+            <dt>Live azimuth</dt>
+            <dd>{look ? `${look.azimuth.toFixed(1)}°` : '—'}</dd>
+          </div>
+          <div>
+            <dt>Elevation</dt>
+            <dd>{look ? `${look.elevation.toFixed(1)}°` : '—'}</dd>
+          </div>
+        </dl>
         <div className="finder-state">
           {!observer ? (
             <Chip size="sm" variant="soft">
@@ -206,27 +247,6 @@ function FinderView({
               <Chip.Label>Below the horizon</Chip.Label>
             </Chip>
           ) : null}
-          {!sensorActive && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onPress={() => void orientation.requestPermission()}
-              isDisabled={orientation.status === 'requesting'}
-            >
-              Enable compass
-            </Button>
-          )}
-          {orientation.error && (
-            <Chip size="sm" variant="soft">
-              <Chip.Label>
-                {orientation.status === 'denied'
-                  ? 'Compass permission denied'
-                  : orientation.status === 'stale'
-                    ? 'Compass paused'
-                    : 'Compass unavailable'}
-              </Chip.Label>
-            </Chip>
-          )}
           {(!Number.isFinite(tleAgeDays) || tleAgeDays > 7 || tleAgeDays < -1) && (
             <Chip size="sm" variant="soft">
               <Chip.Label>Orbit data outdated</Chip.Label>
