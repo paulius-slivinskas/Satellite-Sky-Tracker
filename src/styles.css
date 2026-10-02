@@ -1181,15 +1181,6 @@ h3 {
   border-top: 1px solid var(--border);
   padding-top: 8px;
 }
-.pass-extra-details summary {
-  cursor: pointer;
-  font-size: 11px;
-  color: var(--muted);
-  padding: 4px 0;
-}
-.pass-extra-details[open] summary {
-  margin-bottom: 6px;
-}
 .pass-current-label {
   font-size: 10px;
   margin: 10px 0 4px;
@@ -1242,25 +1233,6 @@ h3 {
 .pass-peak {
   font-variant-numeric: tabular-nums;
 }
-.pass-extra-details summary {
-  text-align: center;
-  list-style: none;
-}
-.pass-extra-details summary::-webkit-details-marker {
-  display: none;
-}
-.pass-extra-details summary {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-}
-.pass-extra-details summary svg {
-  flex-shrink: 0;
-}
-.pass-extra-details[open] summary svg {
-  transform: rotate(180deg);
-}
 .pass-item [data-slot='card-footer'] {
   width: 100%;
 }
@@ -1268,18 +1240,18 @@ h3 {
 .pass-actions {
   display: flex;
   flex-direction: row;
+  justify-content: space-between;
   gap: 8px;
-}
-.pass-actions .finder-launch {
-  margin-top: 0;
-  min-height: 40px;
 }
 .pass-actions .button {
   min-height: 40px;
-  flex: 1;
   min-width: 0;
-  padding-inline: 10px;
+  padding-inline: 8px;
   font-size: 11px;
+  gap: 4px;
+}
+.pass-extra-details[hidden] {
+  display: none;
 }
 
 .pass-elevation-filter {

@@ -36,6 +36,7 @@ export function PassesPanel({
   findInSky: (satellite: Satellite, pass: SatellitePass) => void;
   notificationControls?: ReactNode;
 }) {
+  const [expandedPasses, setExpandedPasses] = useState<Set<string>>(() => new Set());
   const [elevationInput, setElevationInput] = useState(String(state.passMinElevationDegrees));
   useEffect(
     () => setElevationInput(String(state.passMinElevationDegrees)),
@@ -159,6 +160,9 @@ export function PassesPanel({
       )}
       <ul className="passes-list">
         {passes.map((pass, i) => {
+          const passKey = `${pass.noradId}-${pass.start}`;
+          const expanded = expandedPasses.has(passKey);
+          const detailsId = `pass-details-${passKey}`;
           const inView = time >= pass.losStart && time <= pass.losEnd;
           const satellite = satellites.find((sat) => sat.noradId === pass.noradId);
           const current =
@@ -198,11 +202,6 @@ export function PassesPanel({
                     </Card.Title>
                   </div>
                   <div className="pass-header-meta">
-                    <Card.Description className="pass-date">
-                      <time dateTime={new Date(pass.start).toISOString()}>
-                        {new Date(pass.start).toLocaleDateString()}
-                      </time>
-                    </Card.Description>
                     {inView && (
                       <Chip className="pass-live-chip" color="success" variant="soft" size="sm">
                         <Chip.Label>In view</Chip.Label>
@@ -234,23 +233,7 @@ export function PassesPanel({
                       </div>
                     ))}
                   </dl>
-                  <details className="pass-extra-details">
-                    <summary>
-                      <span>More details</span>
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </summary>
+                  <div className="pass-extra-details" id={detailsId} hidden={!expanded}>
                     <dl className="pass-details pass-summary-grid">
                       {[
                         ['Rise Direction', direction(pass.riseAz)],
@@ -288,7 +271,7 @@ export function PassesPanel({
                         </div>
                       )}
                     </dl>
-                  </details>
+                  </div>
                   {(pass.startClipped || pass.endClipped) && (
                     <p className="muted">
                       Full pass boundaries could not be determined; the peak shown is the highest
@@ -298,11 +281,36 @@ export function PassesPanel({
                 </Card.Content>
                 <Card.Footer className="pass-actions">
                   <Button
-                    fullWidth
                     size="md"
-                    variant="secondary"
-                    onPress={() => select(pass.noradId)}
+                    variant="ghost"
+                    className="pass-more"
+                    aria-expanded={expanded}
+                    aria-controls={detailsId}
+                    onPress={() =>
+                      setExpandedPasses((current) => {
+                        const next = new Set(current);
+                        if (next.has(passKey)) next.delete(passKey);
+                        else next.add(passKey);
+                        return next;
+                      })
+                    }
                   >
+                    More
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </Button>
+                  <Button size="md" variant="ghost" onPress={() => select(pass.noradId)}>
                     Sat details
                     <svg
                       width="16"
@@ -315,7 +323,7 @@ export function PassesPanel({
                       strokeLinejoin="round"
                       aria-hidden="true"
                     >
-                      <path d="M5 12h14m-6-6 6 6-6 6" />
+                      <path d="m9 6 6 6-6 6" />
                     </svg>
                   </Button>
                 </Card.Footer>

@@ -32,7 +32,7 @@ test('minimum elevation replaces its label with an input and filters qualifying 
   expect(inputBox.x + inputBox.width).toBeLessThan(toggleBox.x);
   const card = page.locator('.pass-item').first();
   await expect(card.locator('.pass-content > .pass-summary-grid .pass-row')).toHaveCount(3);
-  await card.locator('summary').click();
+  await card.getByRole('button', { name: 'More', exact: true }).click();
   await expect(card.getByText('LOS Appears', { exact: true })).toHaveCount(0);
   await expect(card.getByText('LOS Disappears', { exact: true })).toHaveCount(0);
   await expect(card.locator('.pass-extra-details dl').first().locator('dt')).toHaveText([
@@ -47,10 +47,20 @@ test('minimum elevation replaces its label with an input and filters qualifying 
   expect(Math.abs(az.y - el.y)).toBeLessThan(2);
   expect(nav.x).toBeGreaterThan(el.x);
   expect(nav.y).toBeLessThan(el.y + el.height);
-  const label = (await card.locator('summary span').boundingBox())!;
-  const chevron = (await card.locator('summary svg').boundingBox())!;
-  expect(chevron.x - label.x - label.width).toBeLessThan(8);
-  expect(Math.abs(label.y + label.height / 2 - chevron.y - chevron.height / 2)).toBeLessThan(2);
+  const more = card.getByRole('button', { name: 'More', exact: true });
+  const satellite = card.getByRole('button', { name: 'Sat details', exact: true });
+  await expect(more).toHaveClass(/button--ghost/);
+  await expect(satellite).toHaveClass(/button--ghost/);
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  await expect(card.locator('.pass-date')).toHaveCount(0);
+  const left = (await more.boundingBox())!;
+  const right = (await satellite.boundingBox())!;
+  expect(left.x + left.width).toBeLessThan(right.x);
+  expect(Math.abs(left.y - right.y)).toBeLessThan(2);
+  const chevron = (await more.locator('svg').boundingBox())!;
+  expect(left.x + left.width - chevron.x - chevron.width).toBeLessThan(12);
+  expect(Math.abs(left.y + left.height / 2 - chevron.y - chevron.height / 2)).toBeLessThan(2);
+  await expect(satellite.locator('svg path')).toHaveAttribute('d', 'm9 6 6 6-6 6');
   await card.scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath('pass-minimum-elevation.png') });
   await expect

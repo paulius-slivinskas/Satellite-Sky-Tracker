@@ -28,9 +28,7 @@ test('a pass starting nine seconds before the range ends retains its full durati
   await expect(row('Pass Start')).toHaveText('18:22:42');
   await expect(row('Pass End')).toHaveText('18:29:40');
   await expect(cards.locator('.pass-peak')).toHaveText('5.4°');
-  const header = (await cards.locator('.pass-header').boundingBox())!;
-  const peak = (await cards.locator('.pass-header-meta').boundingBox())!;
-  expect(peak.x + peak.width).toBeCloseTo(header.x + header.width, 0);
+  await expect(cards.locator('.pass-date')).toHaveCount(0);
   const start = Number(await cards.getAttribute('data-pass-start'));
   expect(anchor + 3 * 3600000 - start).toBeGreaterThan(8000);
   expect(anchor + 3 * 3600000 - start).toBeLessThan(10000);
@@ -73,7 +71,7 @@ test('compact pass summary keeps predictions fixed while current position follow
   const card = page.locator('.pass-item').first();
   await expect(card.locator('.pass-content > .pass-summary-grid .pass-row')).toHaveCount(3);
   const start = await card.locator('.pass-content > .pass-summary-grid dd').first().innerText();
-  await card.locator('summary').click();
+  await card.getByRole('button', { name: 'More', exact: true }).click();
   const elevation = card
     .locator('.pass-row')
     .filter({ has: page.locator('dt', { hasText: /^Current Elevation$/ }) })
@@ -115,7 +113,7 @@ test('trajectory selection opens satellite details and closing them preserves pa
   await expect(card).toHaveAttribute('aria-pressed', 'true');
   const start = Number(await card.getAttribute('data-pass-start'));
   const end = Number(await card.getAttribute('data-pass-end'));
-  await card.locator('summary').click();
+  await card.getByRole('button', { name: 'More', exact: true }).click();
   await card.getByRole('button', { name: 'Navigate', exact: true }).click();
   const finder = page.getByRole('dialog', { name: 'Satellite sky finder' });
   await expect(finder.getByRole('region', { name: 'Pass progress' })).toBeVisible();
