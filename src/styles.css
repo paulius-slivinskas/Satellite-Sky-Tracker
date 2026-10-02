@@ -1422,3 +1422,11 @@ h3 {
     margin-top: 20px;
   }
 }
+/* Keep mobile fields at Safari's non-zooming text size, including portal dialogs. */
+@media (max-width: 680px), (hover: none) and (pointer: coarse) {
+  body input,
+  body textarea,
+  body select {
+    font-size: 16px !important;
+  }
+}
