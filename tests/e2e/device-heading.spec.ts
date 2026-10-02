@@ -48,7 +48,11 @@ test('permission gesture enables north-up observer heading, relative readings ar
     'style',
     'transform:rotate(90deg)',
   );
-  await expect(page.locator('.heading-status')).toContainText('90° true · north up');
+  await expect(
+    page.getByRole('button', { name: 'Disable phone heading', exact: true }),
+  ).toContainText('90°');
+  await expect(page.locator('.heading-tick')).toHaveAttribute('style', 'transform: rotate(90deg);');
+  await expect(page.locator('.heading-status')).toHaveCount(0);
   expect(
     await page.evaluate(() => JSON.parse(localStorage.getItem('satapp_view_v2')!).map),
   ).toEqual(before);
@@ -89,7 +93,7 @@ test('phone heading is visible before location setup and opens the location form
   );
   const enable = page.getByRole('button', { name: 'Enable phone heading', exact: true });
   await expect(enable).toBeInViewport({ ratio: 1 });
-  await expect(page.getByText('Phone heading', { exact: true })).toBeVisible();
+  await expect(page.locator('.heading-label')).toHaveCount(0);
   await enable.click();
   await expect(
     page.getByText('Set your observer location to show your phone direction on the map.'),

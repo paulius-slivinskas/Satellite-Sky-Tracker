@@ -1,8 +1,8 @@
-import { Button } from '@heroui/react';
+import { Button, Chip, CloseButton } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { cardinal, lookAngles } from '../domain/orbits';
-import { passProgress, pointingInstruction, shortestTurn } from '../domain/finder';
+import { lookAngles } from '../domain/orbits';
+import { passProgress, shortestTurn } from '../domain/finder';
 import { predictPasses } from '../domain/passes';
 import type { Observer, Satellite, SatellitePass } from '../domain/types';
 import { useDeviceOrientation } from '../state/deviceOrientation';
@@ -57,7 +57,6 @@ function FinderView({
 }) {
   const orientation = useDeviceOrientation();
   const [now, setNow] = useState(Date.now);
-  const [manualHeading, setManualHeading] = useState(0);
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -88,7 +87,7 @@ function FinderView({
     // Include the previous orbit to recover the current pass's start. Recompute only
     // once per minute, never for the one-second pointing updates.
     return (
-      predictPasses(satellite, observer, minute * 60000 - 90 * 60000, '5h').find(
+      predictPasses(satellite, observer, minute * 60000 - 90 * 60000, '12h').find(
         (candidate) => candidate.end > minute * 60000,
       ) ?? null
     );
@@ -102,7 +101,7 @@ function FinderView({
       second: '2-digit',
     });
   const sensorActive = orientation.status === 'active' && orientation.heading !== null;
-  const heading = sensorActive ? orientation.heading! : manualHeading;
+  const heading = sensorActive ? orientation.heading! : 0;
   const turn = look ? shortestTurn(heading, look.azimuth) : 0;
   const above = look && look.elevation >= 0;
   const tleAgeDays = (now - (satellite.satrec.jdsatepoch - 2440587.5) * 86400000) / 86400000;
@@ -130,143 +129,146 @@ function FinderView({
         }
       }}
     >
-      <header>
-        <div>
-          <p>LIVE SKY · {new Date(now).toLocaleTimeString()}</p>
-          <h2>{satellite.name}</h2>
-        </div>
-        <button ref={closeRef} onClick={onClose} aria-label="Close sky finder">
-          ×
-        </button>
+      <header className="finder-header">
+        <h2>{satellite.name}</h2>
+        <CloseButton
+          ref={closeRef}
+          className="finder-close"
+          onPress={onClose}
+          aria-label="Close sky finder"
+        />
       </header>
-      <p className="finder-reference">Live position · Azimuth from true north</p>
-      {(!Number.isFinite(tleAgeDays) || tleAgeDays > 7 || tleAgeDays < -1) && (
-        <p role="status">
-          Orbit elements are old or their epoch is invalid. Live pointing may be inaccurate; refresh
-          satellite data before relying on this guide.
-        </p>
-      )}
-      {!observer ? (
-        <p role="status">Set an observer location in the sidebar, then reopen the finder.</p>
-      ) : !look ? (
-        <p role="status">Orbit position unavailable. Check the satellite data.</p>
-      ) : (
-        <>
-          <div className="finder-dial" aria-hidden="true">
-            <span>Phone top</span>
-            <div style={{ transform: `rotate(${turn}deg)` }}>↑</div>
-          </div>
-          <h3>
-            {above
-              ? sensorActive && orientation.reference === 'magnetic' && Math.abs(turn) <= 5
-                ? 'Approximately facing the satellite'
-                : pointingInstruction(turn)
-              : 'Below the horizon'}
-          </h3>
-          <p className="finder-coordinates">
-            {cardinal(look.azimuth)} {look.azimuth.toFixed(1)}° azimuth ·{' '}
-            {look.elevation.toFixed(1)}° elevation
-          </p>
-          <section className="finder-pass" aria-label="Pass progress">
-            <h4>Pass progress</h4>
-            {shownPass && progress ? (
-              <>
-                <p>
-                  {progress.status === 'upcoming'
-                    ? 'Not started yet'
-                    : progress.status === 'complete'
-                      ? 'Pass complete'
-                      : 'Pass in progress'}{' '}
-                  · Live clock
-                </p>
-                <svg
-                  viewBox="0 0 400 146"
-                  role="img"
-                  aria-label={`Pass ${Math.round(progress.progress * 100)} percent complete. Start ${clock(shownPass.start)}. End ${clock(shownPass.end)}. Current time ${clock(now)}.`}
-                >
-                  <path d="M40 90 Q200 50 360 90" className="finder-pass-track" />
-                  <circle cx={progress.x} cy={progress.y} r="4" className="finder-pass-dot" />
-                  <text
-                    x={progress.x}
-                    y={progress.y - 15}
-                    textAnchor={
-                      progress.progress < 0.15
-                        ? 'start'
-                        : progress.progress > 0.85
-                          ? 'end'
-                          : 'middle'
-                    }
-                    className="finder-pass-now"
-                  >
-                    {clock(now)}
-                  </text>
-                  <text x="40" y="112" textAnchor="start">
-                    Start
-                    <tspan x="40" dy="17">
-                      {clock(shownPass.start)}
-                    </tspan>
-                  </text>
-                  <text x="360" y="112" textAnchor="end">
-                    End
-                    <tspan x="360" dy="17">
-                      {clock(shownPass.end)}
-                    </tspan>
-                  </text>
-                </svg>
-                <p className="finder-pass-note">
-                  {shownPass.startClipped || shownPass.endClipped
-                    ? 'Pass boundary extends beyond the prediction window. '
-                    : ''}
-                  The arc shows elapsed pass time. Pointing directions above always use the current
-                  satellite position.
-                </p>
-              </>
-            ) : (
-              <p>No current or upcoming pass found in the prediction window.</p>
-            )}
-          </section>
-          {above && (
-            <p>
-              Point toward {cardinal(look.azimuth)}, {Math.round(look.elevation)}° above the
-              horizon. Hold the phone flat with its top edge toward that azimuth; use the elevation
-              as a separate guide.
-            </p>
-          )}
-          <p>
-            Above the horizon does not guarantee visibility: sunlight, cloud and satellite
-            brightness matter.
-          </p>
-        </>
-      )}
-      <section className="finder-sensors">
-        <Button
-          onPress={() => void orientation.requestPermission()}
-          isDisabled={orientation.status === 'requesting'}
+      <div className="finder-body">
+        <button
+          type="button"
+          className="finder-compass"
+          aria-label={sensorActive ? 'Compass active' : 'Enable compass direction'}
+          aria-pressed={sensorActive}
+          disabled={orientation.status === 'requesting'}
+          onClick={() => void orientation.requestPermission()}
         >
-          Enable compass
-        </Button>
-        <p role="status">
-          {sensorActive
-            ? orientation.reference === 'magnetic'
-              ? 'Magnetic compass: guidance is approximate because local declination is unknown. Satellite azimuth uses true north. Keep the phone flat and away from magnets.'
-              : 'True-north compass active. Hold the phone flat; keep away from magnets and check against a known direction.'
-            : orientation.error ||
-              'Compass inactive. Use a physical compass and the manual heading below.'}
-        </p>
-        {!sensorActive && (
-          <label>
-            Manual heading from true north: {manualHeading}°
-            <input
-              aria-label="Manual compass heading"
-              type="range"
-              min="0"
-              max="359"
-              value={manualHeading}
-              onChange={(event) => setManualHeading(Number(event.target.value))}
-            />
-          </label>
+          <svg viewBox="0 0 240 240" aria-hidden="true">
+            <g className="finder-compass-ring">
+              <circle cx="120" cy="120" r="114" />
+              {Array.from({ length: 32 }, (_, index) => (
+                <line
+                  key={index}
+                  x1="120"
+                  y1="6"
+                  x2="120"
+                  y2={index % 4 === 0 ? '17' : '11'}
+                  transform={`rotate(${index * 11.25 - heading} 120 120)`}
+                />
+              ))}
+              {['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'].map((label, index) => {
+                const angle = ((index * 45 - heading) * Math.PI) / 180;
+                return (
+                  <text
+                    key={label}
+                    x={120 + 91 * Math.sin(angle)}
+                    y={120 - 91 * Math.cos(angle)}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                  >
+                    {label}
+                  </text>
+                );
+              })}
+            </g>
+            <g transform={`rotate(${turn} 120 120)`} className="finder-compass-arrow">
+              <svg
+                x="86"
+                y="86"
+                width="68"
+                height="68"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              >
+                <path d="m12 3 7 17-7-4-7 4Z" />
+              </svg>
+            </g>
+          </svg>
+        </button>
+        <div className="finder-state">
+          {!observer ? (
+            <Chip size="sm" variant="soft">
+              <Chip.Label>Observer location required</Chip.Label>
+            </Chip>
+          ) : !look ? (
+            <Chip size="sm" variant="soft">
+              <Chip.Label>Position unavailable</Chip.Label>
+            </Chip>
+          ) : !above ? (
+            <Chip size="sm" variant="soft">
+              <Chip.Label>Below the horizon</Chip.Label>
+            </Chip>
+          ) : null}
+          {!sensorActive && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onPress={() => void orientation.requestPermission()}
+              isDisabled={orientation.status === 'requesting'}
+            >
+              Enable compass
+            </Button>
+          )}
+          {orientation.error && (
+            <Chip size="sm" variant="soft">
+              <Chip.Label>
+                {orientation.status === 'denied'
+                  ? 'Compass permission denied'
+                  : orientation.status === 'stale'
+                    ? 'Compass paused'
+                    : 'Compass unavailable'}
+              </Chip.Label>
+            </Chip>
+          )}
+          {(!Number.isFinite(tleAgeDays) || tleAgeDays > 7 || tleAgeDays < -1) && (
+            <Chip size="sm" variant="soft">
+              <Chip.Label>Orbit data outdated</Chip.Label>
+            </Chip>
+          )}
+        </div>
+        {shownPass && progress && (
+          <section className="finder-pass" aria-label="Pass progress">
+            {progress.status === 'upcoming' && <p className="finder-pass-state">Not started yet</p>}
+            {progress.status === 'complete' && <p className="finder-pass-state">Pass complete</p>}
+            <svg
+              viewBox="0 0 400 146"
+              role="img"
+              aria-label={`Pass ${Math.round(progress.progress * 100)} percent complete. Start ${clock(shownPass.start)}. End ${clock(shownPass.end)}. Current time ${clock(now)}.`}
+            >
+              <path d="M40 90 Q200 50 360 90" className="finder-pass-track" />
+              <circle cx={progress.x} cy={progress.y} r="4" className="finder-pass-dot" />
+              <text
+                x={progress.x}
+                y={progress.y - 15}
+                textAnchor={
+                  progress.progress < 0.15 ? 'start' : progress.progress > 0.85 ? 'end' : 'middle'
+                }
+              >
+                {clock(now)}
+              </text>
+              <text x="40" y="112" textAnchor="start">
+                Start
+                <tspan x="40" dy="17">
+                  {clock(shownPass.start)}
+                </tspan>
+              </text>
+              <text x="360" y="112" textAnchor="end">
+                End
+                <tspan x="360" dy="17">
+                  {clock(shownPass.end)}
+                </tspan>
+              </text>
+            </svg>
+          </section>
         )}
-      </section>
+      </div>
     </div>
   );
 }

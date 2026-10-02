@@ -50,7 +50,7 @@ export function HeadingControl({
   return (
     <div className="heading-control" data-inactive={inactive || undefined}>
       <Button
-        className="map-control-button"
+        className="map-control-button heading-button"
         variant="secondary"
         aria-label={status === 'active' ? 'Disable phone heading' : 'Enable phone heading'}
         aria-pressed={status === 'active'}
@@ -73,39 +73,40 @@ export function HeadingControl({
           }
         }}
       >
-        <span className="heading-label">Phone heading</span>
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          aria-hidden="true"
-          data-inactive={inactive || undefined}
-          style={{ transform: `rotate(${heading ?? 0}deg)` }}
-        >
-          <path d="m12 3 7 17-7-4-7 4Z" />
-          {inactive && <path d="M4 4l16 16" />}
-        </svg>
+        {status === 'active' && heading !== null ? (
+          <span
+            className="heading-dial"
+            aria-label={`${Math.round(heading)} degrees ${reference === 'magnetic' ? 'magnetic' : 'true'} north`}
+          >
+            <span className="heading-degrees">{Math.round(heading)}°</span>
+            <span
+              className="heading-tick"
+              aria-hidden="true"
+              style={{ transform: `rotate(${heading}deg)` }}
+            />
+          </span>
+        ) : (
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            aria-hidden="true"
+            data-inactive={inactive || undefined}
+          >
+            <path d="m12 3 7 17-7-4-7 4Z" />
+          </svg>
+        )}
       </Button>
-      {needsLocation && !hasObserver ? (
+      {needsLocation && !hasObserver && (
         <div className="heading-status">
           <p>Set your observer location to show your phone direction on the map.</p>
           <Button size="sm" variant="secondary" onPress={onSetLocation}>
             Set observer location
           </Button>
         </div>
-      ) : (
-        (status === 'active' || status === 'requesting') && (
-          <span className="heading-status" role="status">
-            {status === 'active'
-              ? `${Math.round(heading!)}° ${reference === 'magnetic' ? 'magnetic' : 'true'} · north up`
-              : status === 'requesting'
-                ? 'Waiting for compass…'
-                : error}
-          </span>
-        )
       )}
       {notice &&
         createPortal(
