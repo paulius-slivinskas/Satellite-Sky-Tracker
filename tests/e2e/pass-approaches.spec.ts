@@ -167,6 +167,7 @@ test('hiding pass overlays removes dashed incoming routes and showing them resto
     ...new Set((await endpoints(page)).map((path) => `${path.id}:${path.to}`)),
   ].sort();
   await openSidebar(page);
+  await page.getByRole('tab', { name: 'Passes', exact: true }).click();
   const toggle = page.getByRole('switch', { name: 'Show Passes on Map', exact: true });
   await expect(toggle).toBeChecked();
   await toggle.focus();

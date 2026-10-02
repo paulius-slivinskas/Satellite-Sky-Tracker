@@ -249,7 +249,7 @@ test('sharing a different map selection preserves the explicit multi-satellite w
   await openSidebar(page);
   await expect(page.locator('.pass-item')).toHaveCount(5, { timeout: 20000 });
   await page.getByRole('tab', { name: 'Filters', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Smart Search' }).fill('33591');
+  await page.getByRole('combobox', { name: 'Satellite search' }).fill('33591');
   await page.getByRole('option', { name: /NOAA 19/ }).click();
   await page.getByRole('button', { name: 'Copy share link', exact: true }).click();
   await expect

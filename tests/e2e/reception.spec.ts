@@ -22,7 +22,7 @@ test('reception survives reload, uses real time and saves an exportable report',
     `/?view=${encoded({ version: 2, observer: { lat: 54.7, lon: 25.3, alt: 120, name: 'Vilnius' } })}`,
   );
   await openSidebar(page);
-  const search = page.getByRole('combobox', { name: 'Smart Search' });
+  const search = page.getByRole('combobox', { name: 'Satellite search' });
   await search.fill('ISS');
   await page.getByRole('option', { name: /ISS.*#25544/ }).click();
   await page.getByRole('tab', { name: 'Signal report', exact: true }).click();

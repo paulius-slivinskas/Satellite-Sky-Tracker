@@ -251,11 +251,10 @@ export default function App() {
               </Tabs.ListContainer>
               <Tabs.Panel id="filters">
                 <div className="panel-content">
-                  <h2>Filters</h2>
                   <SatelliteSearch
                     satellites={catalog.satellites}
                     value={state.searchNorad}
-                    label="Smart Search"
+                    label="Satellite search"
                     onSelect={searchSelect}
                   />
                   <div className="section-heading">
@@ -321,11 +320,6 @@ export default function App() {
                     {state.losOnlyEnabled && !state.observer && (
                       <p className="muted">Set an observer location to apply this filter.</p>
                     )}
-                    <Toggle
-                      label="Show Passes on Map"
-                      selected={state.showPassesOnMap}
-                      onChange={(value) => patch({ showPassesOnMap: value })}
-                    />
                   </div>
                   <p className="muted" data-testid="sat-count">
                     {catalog.loading && !catalog.satellites.length

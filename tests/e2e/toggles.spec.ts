@@ -37,12 +37,14 @@ test('settings switches respond to their visible controls and stay synchronized 
   await expect(page.getByRole('switch', { name: 'Show LOS Footprint' })).toBeChecked();
   await row('Only visible from observer').locator('.switch__control').click();
   await expect(page.getByText('Set an observer location to apply this filter.')).toBeVisible();
-  await row('Show Passes on Map').locator('.switch__control').click();
-  await expect(page.getByRole('switch', { name: 'Show Passes on Map' })).not.toBeChecked();
+  await expect(page.getByRole('switch', { name: 'Show Passes on Map' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Filters', exact: true })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Passes', exact: true }).click();
+  await expect(page.getByRole('switch', { name: 'Show Passes on Map' })).toBeChecked();
+  await row('Show Passes on Map').locator('.switch__control').click();
   await expect(page.getByRole('switch', { name: 'Show Passes on Map' })).not.toBeChecked();
   await row('Show Passes on Map').locator('.switch__thumb').click();
   await expect(page.getByRole('switch', { name: 'Show Passes on Map' })).toBeChecked();
   await page.getByRole('tab', { name: 'Filters', exact: true }).click();
-  await expect(page.getByRole('switch', { name: 'Show Passes on Map' })).toBeChecked();
+  await expect(page.getByRole('switch', { name: 'Show Passes on Map' })).toHaveCount(0);
 });
