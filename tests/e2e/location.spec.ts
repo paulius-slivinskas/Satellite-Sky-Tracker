@@ -18,7 +18,9 @@ function deferred() {
 async function openLocation(page: Page) {
   await page.goto('/');
   await openSidebar(page);
-  await page.locator('.location-trigger').click();
+  if (page.viewportSize()!.width <= 680)
+    await page.getByRole('button', { name: 'Set current location', exact: true }).click();
+  else await page.locator('.location-trigger').click();
   return page.getByRole('combobox', { name: 'Location', exact: true });
 }
 
@@ -136,22 +138,11 @@ test('mobile observer control stays reachable while the sidebar scrolls and the 
   await page.context().setGeolocation({ latitude: 54.6872, longitude: 25.2797 });
   await page.goto('/');
   await openSidebar(page);
-  const trigger = page.getByRole('button', { name: 'Observer location', exact: true });
+  const trigger = page.getByRole('button', { name: 'Set current location', exact: true });
+  await trigger.scrollIntoViewIfNeeded();
   await expect(trigger).toBeInViewport({ ratio: 1 });
-  await expect(page.locator('.sidebar-stack')).toHaveCSS('transform', 'none');
-  const before = (await trigger.boundingBox())!;
-  expect(before.y).toBeGreaterThanOrEqual(60);
-  await page.locator('.sidebar-stack').evaluate((el) => {
-    el.scrollTop = 500;
-  });
-  await expect.poll(async () => (await trigger.boundingBox())!.y).toBe(before.y);
-  expect(
-    await trigger.evaluate((el) => {
-      const r = el.getBoundingClientRect();
-      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
-    }),
-  ).toBe(true);
-  await trigger.click();
+  await trigger.tap();
+  await expect(page.getByRole('dialog', { name: 'Choose current location' })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Location', exact: true })).toBeInViewport({
     ratio: 1,
   });
@@ -165,7 +156,9 @@ test('mobile observer control stays reachable while the sidebar scrolls and the 
     '54.6872',
   );
   await expect(page.locator('.location-trigger')).toContainText('Current location');
-  await expect(page.getByRole('button', { name: 'Close sidebar', exact: true })).toBeInViewport({
+  await expect(
+    page.getByRole('button', { name: 'Close location picker', exact: true }),
+  ).toBeInViewport({
     ratio: 1,
   });
   await page.screenshot({

@@ -61,6 +61,8 @@ Optional variables for the traditional Node deployment:
 | `server.js`, `services/`, `lib/`, `config/` | Radio API, normalization, cache, and configured radio data.                       |
 | `tests/`                                    | Deterministic unit, server, and browser regression coverage.                      |
 
+On mobile, the Current location card opens a fullscreen picker with device location, place search and editable coordinates. Before choosing a location the card appears below Filters, Passes and Settings; afterward it remains only in Settings.
+
 React owns application state. Leaflet owns map layers through the map adapter. Orbit functions receive the observer, altitude, and time explicitly, without reading DOM controls. Pass prediction retains the original five-second elevation search and two-second footprint-boundary sampling.
 
 The Passes panel has an optional minimum elevation filter (0–90°): enabling it replaces the label with a numeric input. Upcoming 3/5 ranges return the next qualifying passes within 72 hours. The threshold persists in saved preferences and shared views. Pass cards show matching Start / End / Max Elevation summaries, a chronological Rise / Max Elevation Az / Set detail row, and a Current Azimuth / Current Elevation / Navigate row. Navigate opens the sky finder; More and Sat details are ghost buttons aligned left and right below the card.

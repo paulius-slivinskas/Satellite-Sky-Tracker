@@ -151,6 +151,39 @@ export default function App() {
   useEffect(() => {
     setActivePass(null);
   }, [predictions.passes]);
+  const locationCard = (
+    <Button
+      className="mobile-location-card"
+      variant="secondary"
+      fullWidth
+      aria-label={state.observer ? 'Change current location' : 'Set current location'}
+      onPress={() => setLocationOpen(true)}
+    >
+      <span className="location-summary-pin" aria-hidden="true" />
+      <span className="mobile-location-card-copy">
+        <span>Current location</span>
+        <small>
+          {state.observer
+            ? state.observer.name ||
+              `${state.observer.lat.toFixed(3)}, ${state.observer.lon.toFixed(3)}`
+            : 'Choose your observer location'}
+        </small>
+      </span>
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="m9 6 6 6-6 6" />
+      </svg>
+    </Button>
+  );
   return (
     <div
       className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''}`}
@@ -222,6 +255,15 @@ export default function App() {
           </Tabs.ListContainer>
         </Tabs>
       </nav>
+      {locationOpen && window.innerWidth <= 680 && (
+        <LocationPanel
+          fullscreen
+          observer={state.observer}
+          onChange={changeObserver}
+          open
+          onOpenChange={setLocationOpen}
+        />
+      )}
       <div className="sidebar-stack">
         <div className="mobile-sheet-header">
           {state.tab === 'filters' && (
@@ -347,6 +389,7 @@ export default function App() {
                       ? 'Loading satellites…'
                       : `${frame.visible.length} visible from selected categories`}
                   </p>
+                  {!state.observer && locationCard}
                 </div>
               </Tabs.Panel>
               <Tabs.Panel id="time">
@@ -369,6 +412,7 @@ export default function App() {
                   findInSky={(satellite, pass) => setFinderTarget({ satellite, pass })}
                   notificationControls={<PassNotificationControls notifications={notifications} />}
                 />
+                {!state.observer && locationCard}
               </Tabs.Panel>
               <Tabs.Panel id="settings">
                 <div className="panel-content">
@@ -398,6 +442,7 @@ export default function App() {
                       Oldest feed update: {new Date(catalog.refreshedAt).toLocaleString()}
                     </p>
                   )}
+                  {locationCard}
                 </div>
               </Tabs.Panel>
             </Tabs>

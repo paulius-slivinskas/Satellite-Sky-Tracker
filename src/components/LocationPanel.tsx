@@ -2,12 +2,14 @@ import {
   Accordion,
   Button,
   ComboBox,
+  CloseButton,
   Input,
   Label,
   ListBox,
   type ComboBoxValueRenderProps,
 } from '@heroui/react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { browserLocation, elevation, searchLocations } from '../data/location';
 import { validateObserver } from '../state/view';
 import type { Observer } from '../domain/types';
@@ -39,12 +41,50 @@ export function LocationPanel({
   onChange,
   open,
   onOpenChange,
+  fullscreen = false,
 }: {
   observer: Observer | null;
+  fullscreen?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onChange: (observer: Observer | null) => void;
 }) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!fullscreen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const root = document.getElementById('root');
+    const wasInert = root?.inert ?? false;
+    if (root) root.inert = true;
+    closeRef.current?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onOpenChange(false);
+      }
+      if (event.key === 'Tab') {
+        const controls = dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input',
+        );
+        const first = controls?.[0];
+        const last = controls?.[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => {
+      document.removeEventListener('keydown', keydown);
+      if (root) root.inert = wasInert;
+      previous?.focus();
+    };
+  }, [fullscreen, onOpenChange]);
   const [query, setQuery] = useState(observer?.name ?? '');
   const [lat, setLat] = useState(observer ? String(observer.lat) : '');
   const [lon, setLon] = useState(observer ? String(observer.lon) : '');
@@ -197,8 +237,135 @@ export function LocationPanel({
     !suggestions.some((item) => locationKey(item) === locationKey(selectedLocation))
       ? [selectedLocation, ...suggestions]
       : suggestions;
+  const form = (
+    <div className="location-content">
+      <Button variant="secondary" fullWidth onPress={() => void locate()} isDisabled={busy}>
+        {busy ? 'Locating…' : 'Use my location'}
+      </Button>
+      {error && <AppAlert status="warning">{error}</AppAlert>}
+      <ComboBox
+        className="field"
+        inputValue={query}
+        items={items}
+        selectedKey={selectedLocation ? locationKey(selectedLocation) : null}
+        allowsCustomValue
+        allowsEmptyCollection
+        onInputChange={(text) => {
+          if (text === inputText.current) return;
+          inputText.current = text;
+          cancelPending();
+          setQuery(text);
+          setSelectedLocation(null);
+          setSuggestions([]);
+          setError('');
+          setSearchEnabled(true);
+        }}
+        onSelectionChange={(id) => {
+          const item = items.find((item) => locationKey(item) === id);
+          if (item) void choose(item);
+        }}
+      >
+        <ComboBox.Value<Observer> hidden>
+          {({ state }) => (
+            <OpenAsyncSuggestions state={state} items={suggestions} enabled={searchEnabled} />
+          )}
+        </ComboBox.Value>
+        <Label>Location</Label>
+        <ComboBox.InputGroup>
+          <Input placeholder="Type a city or country" />
+          <ComboBox.Trigger />
+        </ComboBox.InputGroup>
+        <ComboBox.Popover>
+          <ListBox<Observer>>
+            {(item) => (
+              <ListBox.Item id={locationKey(item)} textValue={item.name}>
+                {item.name}
+              </ListBox.Item>
+            )}
+          </ListBox>
+        </ComboBox.Popover>
+      </ComboBox>
+      <div className="coordinate-fields">
+        <Field
+          label="Latitude"
+          value={lat}
+          type="number"
+          min={-90}
+          max={90}
+          onChange={(text) => {
+            cancelPending();
+            setLat(text);
+          }}
+        />
+        <Field
+          label="Longitude"
+          value={lon}
+          type="number"
+          min={-180}
+          max={180}
+          onChange={(text) => {
+            cancelPending();
+            setLon(text);
+          }}
+        />
+      </div>
+      <Field
+        label="Altitude (m)"
+        value={alt}
+        type="number"
+        min={-500}
+        max={100000}
+        onChange={(text) => {
+          cancelPending();
+          setAlt(text);
+        }}
+      />
+      <p className="muted field-helper">
+        Adjust altitude if your actual position is above ground level.
+      </p>
+      <Button onPress={apply} fullWidth>
+        Apply location
+      </Button>
+      <div className="button-row">
+        <Button
+          variant="ghost"
+          onPress={() => {
+            cancelPending();
+            setError('');
+            setSearchEnabled(false);
+            setSuggestions([]);
+            commit(null);
+          }}
+        >
+          Reset
+        </Button>
+      </div>
+    </div>
+  );
+  if (fullscreen)
+    return createPortal(
+      <div
+        className="location-picker"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose current location"
+      >
+        <header>
+          <h2>Current location</h2>
+          <CloseButton
+            ref={closeRef}
+            className="location-picker-close"
+            aria-label="Close location picker"
+            onPress={() => onOpenChange(false)}
+          />
+        </header>
+        {form}
+      </div>,
+      document.body,
+    );
   return (
-    <aside className="sidebar sidebar-location">
+    <aside className="sidebar sidebar-location desktop-location-panel">
       <Accordion
         className="location-details"
         hideSeparator
@@ -220,113 +387,7 @@ export function LocationPanel({
             </Accordion.Trigger>
           </Accordion.Heading>
           <Accordion.Panel>
-            <Accordion.Body className="location-content">
-              <Button variant="secondary" fullWidth onPress={() => void locate()} isDisabled={busy}>
-                {busy ? 'Locating…' : 'Use my location'}
-              </Button>
-              {error && <AppAlert status="warning">{error}</AppAlert>}
-              <ComboBox
-                className="field"
-                inputValue={query}
-                items={items}
-                selectedKey={selectedLocation ? locationKey(selectedLocation) : null}
-                allowsCustomValue
-                allowsEmptyCollection
-                onInputChange={(text) => {
-                  if (text === inputText.current) return;
-                  inputText.current = text;
-                  cancelPending();
-                  setQuery(text);
-                  setSelectedLocation(null);
-                  setSuggestions([]);
-                  setError('');
-                  setSearchEnabled(true);
-                }}
-                onSelectionChange={(id) => {
-                  const item = items.find((item) => locationKey(item) === id);
-                  if (item) void choose(item);
-                }}
-              >
-                <ComboBox.Value<Observer> hidden>
-                  {({ state }) => (
-                    <OpenAsyncSuggestions
-                      state={state}
-                      items={suggestions}
-                      enabled={searchEnabled}
-                    />
-                  )}
-                </ComboBox.Value>
-                <Label>Location</Label>
-                <ComboBox.InputGroup>
-                  <Input placeholder="Type a city or country" />
-                  <ComboBox.Trigger />
-                </ComboBox.InputGroup>
-                <ComboBox.Popover>
-                  <ListBox<Observer>>
-                    {(item) => (
-                      <ListBox.Item id={locationKey(item)} textValue={item.name}>
-                        {item.name}
-                      </ListBox.Item>
-                    )}
-                  </ListBox>
-                </ComboBox.Popover>
-              </ComboBox>
-              <div className="coordinate-fields">
-                <Field
-                  label="Latitude"
-                  value={lat}
-                  type="number"
-                  min={-90}
-                  max={90}
-                  onChange={(text) => {
-                    cancelPending();
-                    setLat(text);
-                  }}
-                />
-                <Field
-                  label="Longitude"
-                  value={lon}
-                  type="number"
-                  min={-180}
-                  max={180}
-                  onChange={(text) => {
-                    cancelPending();
-                    setLon(text);
-                  }}
-                />
-              </div>
-              <Field
-                label="Altitude (m)"
-                value={alt}
-                type="number"
-                min={-500}
-                max={100000}
-                onChange={(text) => {
-                  cancelPending();
-                  setAlt(text);
-                }}
-              />
-              <p className="muted field-helper">
-                Adjust altitude if your actual position is above ground level.
-              </p>
-              <Button onPress={apply} fullWidth>
-                Apply location
-              </Button>
-              <div className="button-row">
-                <Button
-                  variant="ghost"
-                  onPress={() => {
-                    cancelPending();
-                    setError('');
-                    setSearchEnabled(false);
-                    setSuggestions([]);
-                    commit(null);
-                  }}
-                >
-                  Reset
-                </Button>
-              </div>
-            </Accordion.Body>
+            <Accordion.Body>{form}</Accordion.Body>
           </Accordion.Panel>
         </Accordion.Item>
       </Accordion>

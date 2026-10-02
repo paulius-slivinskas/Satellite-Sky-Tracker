@@ -141,10 +141,20 @@ test('pass HeroUI cards retain numerical details and focus/hover selection', asy
   expect(errors).toEqual([]);
 });
 
-test('observer location uses a real HeroUI accordion with keyboard expansion', async ({ page }) => {
+test('observer location uses a real HeroUI accordion with keyboard expansion', async ({
+  page,
+}, testInfo) => {
   await setup(page);
   await page.goto('/');
   await openSidebar(page);
+  if (testInfo.project.use.hasTouch) {
+    await page.getByRole('button', { name: 'Set current location', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Choose current location' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Location', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Choose current location' })).toHaveCount(0);
+    return;
+  }
   const trigger = page.getByRole('button', { name: 'Observer location', exact: true });
   await expect(trigger).toHaveClass(/location-trigger/);
   await expect(trigger).toHaveAttribute('data-slot', 'accordion-trigger');

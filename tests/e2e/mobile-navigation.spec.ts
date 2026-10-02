@@ -45,3 +45,46 @@ test('mobile navigation opens bottom sheets and keeps map controls outside them'
   await expect(page.locator('.sidebar-stack')).toHaveCSS('transform', 'none');
   await page.screenshot({ path: testInfo.outputPath('mobile-bottom-sheet.png') });
 });
+
+test('mobile location cards open fullscreen and remain only in Settings after selection', async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.use.hasTouch);
+  await prepare(page);
+  await page.goto('/');
+  const nav = page.getByRole('tablist', { name: 'Mobile tracking sections' });
+  for (const name of ['Filters', 'Passes', 'Settings']) {
+    await nav.getByRole('tab', { name, exact: true }).tap();
+    await expect(page.getByRole('button', { name: 'Observer location', exact: true })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByRole('button', { name: 'Set current location', exact: true }),
+    ).toBeVisible();
+  }
+  await page.getByRole('button', { name: 'Set current location', exact: true }).tap();
+  const dialog = page.getByRole('dialog', { name: 'Choose current location' });
+  const box = (await dialog.boundingBox())!;
+  expect(box.x).toBe(0);
+  expect(box.y).toBe(0);
+  expect(box.height).toBe(page.viewportSize()!.height);
+  await dialog.getByRole('spinbutton', { name: 'Latitude', exact: true }).fill('54.6872');
+  await dialog.getByRole('spinbutton', { name: 'Longitude', exact: true }).fill('25.2797');
+  await dialog.getByRole('spinbutton', { name: 'Altitude (m)', exact: true }).fill('120');
+  await dialog.getByRole('button', { name: 'Apply location', exact: true }).tap();
+  await dialog.getByRole('button', { name: 'Close location picker', exact: true }).tap();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Change current location', exact: true }),
+  ).toContainText('54.687, 25.280');
+  for (const name of ['Filters', 'Passes']) {
+    await nav.getByRole('tab', { name, exact: true }).tap();
+    await expect(page.locator('.mobile-location-card:visible')).toHaveCount(0);
+  }
+  await nav.getByRole('tab', { name: 'Settings', exact: true }).tap();
+  await page.getByRole('button', { name: 'Change current location', exact: true }).tap();
+  await expect(dialog.getByRole('spinbutton', { name: 'Latitude', exact: true })).toHaveValue(
+    '54.6872',
+  );
+  await page.screenshot({ path: testInfo.outputPath('mobile-fullscreen-location.png') });
+});
