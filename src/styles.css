@@ -34,7 +34,7 @@
   --overlay-gap: 12px;
   --sidebar-width: 360px;
   --panel-background: #0f0f0ff0;
-  --mobile-panel-background: #0c0c0cf7;
+  --mobile-panel-background: #0c0c0c;
   --label-foreground: #aaa;
   --pin-foreground: #ddd;
   --timeline-tick: #454545;
@@ -72,7 +72,7 @@
   --default: #e8ecf0;
   --default-foreground: #24282d;
   --panel-background: #fffffff5;
-  --mobile-panel-background: #f6f7f9fa;
+  --mobile-panel-background: #f6f7f9;
   --label-foreground: #59616c;
   --pin-foreground: #5d6773;
   --timeline-tick: #b9c0c8;
@@ -1289,4 +1289,70 @@ h3 {
   width: 100%;
   padding-inline: 8px;
   font-size: 11px;
+}
+
+.mobile-sheet-header {
+  display: none;
+}
+.sidebar-close {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  background: var(--overlay);
+  color: var(--overlay-foreground);
+  box-shadow: 0 2px 8px #00000012;
+}
+.sidebar-close:hover {
+  background: var(--surface-secondary);
+}
+@media (max-width: 680px) {
+  .sidebar-stack {
+    bottom: 0;
+    border-radius: 36px 36px 0 0;
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+    background: var(--mobile-panel-background);
+  }
+  .mobile-sheet-header {
+    display: flex;
+    align-items: center;
+    order: -2;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    flex: 0 0 64px;
+    padding: 12px 64px 12px 20px;
+    background: var(--mobile-panel-background);
+  }
+  .mobile-sheet-header .field {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+  .mobile-sheet-header .combo-box__input-group {
+    height: 40px;
+    min-height: 40px;
+    min-width: 0;
+    width: 100%;
+  }
+  .desktop-filter-search {
+    display: none;
+  }
+  .sidebar-location {
+    top: 64px;
+    padding-top: 0;
+    background: var(--mobile-panel-background);
+  }
+}
+@media (max-width: 680px) {
+  .app:not(.sidebar-collapsed) .mobile-bottom-nav::before {
+    content: '';
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(76px + env(safe-area-inset-bottom));
+    background: var(--mobile-panel-background);
+    z-index: -1;
+    pointer-events: none;
+  }
 }

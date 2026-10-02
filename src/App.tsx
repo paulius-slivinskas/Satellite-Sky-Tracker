@@ -1,4 +1,4 @@
-import { Button, Card, Separator, Tabs } from '@heroui/react';
+import { Button, Card, CloseButton, Separator, Tabs } from '@heroui/react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { FILTER_CONFIG, isAmateurSelectedName } from './domain/config';
 import { positionAt } from './domain/orbits';
@@ -155,30 +155,39 @@ export default function App() {
     <div
       className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''}`}
     >
-      <Button
-        className="sidebar-toggle"
-        variant="secondary"
-        isIconOnly
-        aria-label={collapsed ? 'Open sidebar' : 'Close sidebar'}
-        aria-expanded={!collapsed}
-        onPress={() => {
-          if (collapsed && window.innerWidth <= 1100) setDetailsOpen(false);
-          setCollapsed((value) => !value);
-        }}
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          aria-hidden="true"
+      {!collapsed ? (
+        <CloseButton
+          className="sidebar-toggle sidebar-close"
+          aria-label="Close sidebar"
+          aria-expanded="true"
+          onPress={() => setCollapsed(true)}
+        />
+      ) : (
+        <Button
+          className="sidebar-toggle"
+          variant="secondary"
+          isIconOnly
+          aria-label={collapsed ? 'Open sidebar' : 'Close sidebar'}
+          aria-expanded={!collapsed}
+          onPress={() => {
+            if (collapsed && window.innerWidth <= 1100) setDetailsOpen(false);
+            setCollapsed((value) => !value);
+          }}
         >
-          {collapsed ? <path d="M4 6h16M4 12h16M4 18h16" /> : <path d="m6 6 12 12M18 6 6 18" />}
-        </svg>
-      </Button>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </Button>
+      )}
       <nav
         className="mobile-bottom-nav"
         aria-label="Mobile tracking navigation"
@@ -214,6 +223,16 @@ export default function App() {
         </Tabs>
       </nav>
       <div className="sidebar-stack">
+        <div className="mobile-sheet-header">
+          {state.tab === 'filters' && (
+            <SatelliteSearch
+              satellites={catalog.satellites}
+              value={state.searchNorad}
+              label="Satellite search"
+              onSelect={searchSelect}
+            />
+          )}
+        </div>
         <LocationPanel
           observer={state.observer}
           onChange={changeObserver}
@@ -251,12 +270,14 @@ export default function App() {
               </Tabs.ListContainer>
               <Tabs.Panel id="filters">
                 <div className="panel-content">
-                  <SatelliteSearch
-                    satellites={catalog.satellites}
-                    value={state.searchNorad}
-                    label="Satellite search"
-                    onSelect={searchSelect}
-                  />
+                  <div className="desktop-filter-search">
+                    <SatelliteSearch
+                      satellites={catalog.satellites}
+                      value={state.searchNorad}
+                      label="Satellite search"
+                      onSelect={searchSelect}
+                    />
+                  </div>
                   <div className="section-heading">
                     <span className="muted">Categories</span>
                     <Button
