@@ -1640,3 +1640,33 @@ h3 {
     visibility: hidden;
   }
 }
+
+@media (min-width: 1101px) {
+  .sidebar-stack {
+    bottom: auto;
+    max-height: calc(100dvh - 24px);
+  }
+  .sidebar-main {
+    flex: 0 1 auto;
+  }
+  .sidebar-scroll {
+    height: auto;
+    flex: 1 1 auto;
+  }
+  .sidebar-location {
+    flex: 0 0 auto;
+    max-height: 50dvh;
+    overflow-y: auto;
+  }
+  .pass-carousel .pass-item {
+    cursor: grab;
+    user-select: none;
+  }
+  .pass-carousel[data-dragging='true'] {
+    scroll-snap-type: none;
+    cursor: grabbing;
+  }
+  .pass-carousel[data-dragging='true'] .pass-item {
+    cursor: grabbing;
+  }
+}

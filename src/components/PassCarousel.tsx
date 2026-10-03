@@ -47,10 +47,63 @@ export function PassCarousel({
       event.preventDefault();
       element.scrollLeft += event.deltaY;
     };
+    let drag: { pointerId: number; x: number; scroll: number; moved: boolean } | null = null;
+    let suppressClick = false;
+    const down = (event: PointerEvent) => {
+      suppressClick = false;
+      if (
+        event.pointerType !== 'mouse' ||
+        event.button !== 0 ||
+        (event.target as HTMLElement).closest('button, input, a, .pass-extra-details')
+      )
+        return;
+      drag = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        scroll: element.scrollLeft,
+        moved: false,
+      };
+    };
+    const move = (event: PointerEvent) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const distance = event.clientX - drag.x;
+      if (!drag.moved && Math.abs(distance) < 6) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        element.setPointerCapture(event.pointerId);
+        element.dataset.dragging = 'true';
+      }
+      event.preventDefault();
+      element.scrollLeft = drag.scroll - distance;
+    };
+    const up = (event: PointerEvent) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      suppressClick = drag.moved;
+      if (element.hasPointerCapture(event.pointerId))
+        element.releasePointerCapture(event.pointerId);
+      drag = null;
+      delete element.dataset.dragging;
+    };
+    const click = (event: MouseEvent) => {
+      if (!suppressClick) return;
+      suppressClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    };
     element.addEventListener('wheel', wheel, { passive: false });
+    element.addEventListener('pointerdown', down);
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    element.addEventListener('click', click, true);
     return () => {
       observer.disconnect();
       element.removeEventListener('wheel', wheel);
+      element.removeEventListener('pointerdown', down);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      element.removeEventListener('click', click, true);
       app?.style.removeProperty('--pass-carousel-height');
     };
   }, []);

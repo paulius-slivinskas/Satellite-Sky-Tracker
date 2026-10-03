@@ -27,6 +27,25 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
     if (controls) expect(controls.y + controls.height).toBeLessThan(bounds!.y);
   } else {
     expect(bounds!.x).toBeGreaterThanOrEqual(380);
+    const location = await page.locator('.sidebar-location').boundingBox();
+    const sidebar = await page.locator('.sidebar-main').boundingBox();
+    expect(location!.y - (sidebar!.y + sidebar!.height)).toBeCloseTo(12, 0);
+    await page.getByRole('tab', { name: 'Settings', exact: true }).click();
+    const timeSidebar = await page.locator('.sidebar-main').boundingBox();
+    const timeLocation = await page.locator('.sidebar-location').boundingBox();
+    expect(timeLocation!.y - (timeSidebar!.y + timeSidebar!.height)).toBeCloseTo(12, 0);
+    expect(timeLocation!.y + timeLocation!.height).toBeLessThan(page.viewportSize()!.height - 12);
+    await page.getByRole('tab', { name: 'Passes', exact: true }).click();
+    const first = await cards.first().locator('.pass-header').boundingBox();
+    await page.mouse.move(first!.x + first!.width - 20, first!.y + first!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(first!.x + 20, first!.y + first!.height / 2, { steps: 10 });
+    await page.mouse.up();
+    await expect.poll(() => carousel.evaluate((el) => el.scrollLeft)).toBeGreaterThan(100);
+    await expect(page.locator('.sat-info-panel')).toHaveCount(0);
+    await carousel.evaluate((el) => {
+      el.scrollLeft = 0;
+    });
   }
   expect(await carousel.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
   await cards.first().getByRole('button', { name: 'More', exact: true }).click();
