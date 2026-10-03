@@ -26,10 +26,14 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
     const controls = await page.locator('.map-controls').boundingBox();
     if (controls) expect(controls.y + controls.height).toBeLessThan(bounds!.y);
   } else {
-    expect(bounds!.x).toBeGreaterThanOrEqual(380);
+    expect(bounds!.x).toBe(0);
+    expect(bounds!.width).toBe(page.viewportSize()!.width);
+    const controls = await page.locator('.map-controls').boundingBox();
+    expect(controls!.y + controls!.height).toBeLessThan(bounds!.y);
     const location = await page.locator('.sidebar-location').boundingBox();
     const sidebar = await page.locator('.sidebar-main').boundingBox();
     expect(location!.y - (sidebar!.y + sidebar!.height)).toBeCloseTo(12, 0);
+    expect(location!.y + location!.height).toBeLessThan(bounds!.y);
     await page.getByRole('tab', { name: 'Settings', exact: true }).click();
     const timeSidebar = await page.locator('.sidebar-main').boundingBox();
     const timeLocation = await page.locator('.sidebar-location').boundingBox();

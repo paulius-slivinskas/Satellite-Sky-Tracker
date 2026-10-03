@@ -1670,3 +1670,19 @@ h3 {
     cursor: grabbing;
   }
 }
+
+@media (min-width: 1101px) {
+  .pass-carousel,
+  .sidebar-collapsed .pass-carousel {
+    left: 0;
+    right: 0;
+    padding: 4px 12px 8px;
+  }
+  .has-pass-carousel .sidebar-stack {
+    max-height: calc(100dvh - var(--pass-carousel-height, 180px) - 36px);
+  }
+  .has-pass-carousel .map-controls,
+  .has-pass-carousel .right-stack {
+    bottom: calc(var(--pass-carousel-height, 180px) + 24px);
+  }
+}
