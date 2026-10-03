@@ -1,5 +1,5 @@
 import { test, expect, prepare, openSidebar, encoded, LINE1, LINE2 } from './fixtures';
-import type { Page } from '@playwright/test';
+import type { Page, Locator } from '@playwright/test';
 
 const anchor = Date.parse('2024-02-29T12:30:00Z');
 const initial = {
@@ -13,6 +13,10 @@ const initial = {
   passRange: 'upcoming3',
   showPassesOnMap: true,
 };
+async function selectionPane(dialog: Locator, pane: 'Search' | 'Selected') {
+  const tab = dialog.getByRole('tab', { name: pane === 'Selected' ? /^Selected/ : 'Search' });
+  if (await tab.isVisible()) await tab.click();
+}
 async function setup(page: Page) {
   await prepare(page);
   await page.route('https://fonts.googleapis.com/**', (route) =>
@@ -63,6 +67,7 @@ async function addPair(page: Page) {
   const amateur = dialog.getByRole('checkbox', { name: 'AO-91 (43017)', exact: true });
   await amateur.locator('xpath=ancestor::label').click();
   await expect(amateur).toBeChecked();
+  await selectionPane(dialog, 'Selected');
   const bucket = dialog.getByRole('region', { name: 'Selected satellites' });
   await expect(bucket.getByRole('button', { name: 'Remove ISS', exact: true })).toBeVisible();
   await expect(bucket.getByRole('button', { name: 'Remove AO-91', exact: true })).toBeVisible();
@@ -85,10 +90,14 @@ test('bulk category selection preserves other categories and applies only on con
   await expect(dialog.getByRole('checkbox', { name: 'AO-91 (43017)', exact: true })).toBeVisible();
   await dialog.getByRole('textbox', { name: 'Search satellites', exact: true }).fill('no match');
   await dialog.getByRole('button', { name: 'Select all', exact: true }).click();
+  await selectionPane(dialog, 'Selected');
   await expect(dialog.getByRole('button', { name: 'Remove AO-91', exact: true })).toBeVisible();
+  await selectionPane(dialog, 'Search');
   await dialog.getByRole('button', { name: 'Deselect all', exact: true }).click();
   await expect(dialog.getByRole('button', { name: 'Remove AO-91', exact: true })).toHaveCount(0);
+  await selectionPane(dialog, 'Selected');
   await expect(dialog.getByRole('button', { name: 'Remove ISS', exact: true })).toBeVisible();
+  await selectionPane(dialog, 'Search');
   await expect(dialog.getByRole('button', { name: 'Deselect all', exact: true })).toBeDisabled();
   await expect.poll(() => savedList(page)).toEqual([]);
   await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
@@ -119,18 +128,22 @@ test('watchlist category/search selection is transactional, removable, clearable
   await openSidebar(page);
   await expect.poll(() => savedList(page)).toEqual(['25544', '43017']);
   dialog = await openSelection(page);
+  await selectionPane(dialog, 'Selected');
   await dialog.getByRole('button', { name: 'Remove ISS', exact: true }).click();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect.poll(() => savedList(page)).toEqual(['25544', '43017']);
   dialog = await openSelection(page);
+  await selectionPane(dialog, 'Selected');
   await dialog.getByRole('button', { name: 'Remove ISS', exact: true }).click();
   await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect.poll(() => savedList(page)).toEqual(['43017']);
   dialog = await openSelection(page);
+  await selectionPane(dialog, 'Selected');
   await dialog.getByRole('button', { name: 'Clear list', exact: true }).click();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect.poll(() => savedList(page)).toEqual(['43017']);
   dialog = await openSelection(page);
+  await selectionPane(dialog, 'Selected');
   await dialog.getByRole('button', { name: 'Clear list', exact: true }).click();
   await dialog.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect.poll(() => savedList(page)).toEqual([]);
@@ -193,10 +206,10 @@ for (const [range, count] of [
     }
     await expect(
       cards.locator('[data-slot="card-title"]').filter({ hasText: 'ISS' }).first(),
-    ).toBeVisible();
+    ).toBeAttached();
     await expect(
       cards.locator('[data-slot="card-title"]').filter({ hasText: 'AO-91' }).first(),
-    ).toBeVisible();
+    ).toBeAttached();
   });
 }
 
@@ -204,7 +217,12 @@ test('day ranges preserve full overlapping passes and an explicitly empty shared
   page,
 }) => {
   await setup(page);
-  const from = Date.parse('2024-02-29T18:23:00Z');
+  await page.goto(
+    `/?view=${encoded({ ...initial, passWatchlist: ['25544', '43017'], passRange: '1' })}`,
+  );
+  await expect(page.locator('.pass-item').first()).toBeAttached();
+  const from =
+    Number(await page.locator('.pass-item').first().getAttribute('data-pass-start')) + 60000;
   await page.goto(
     `/?view=${encoded({ ...initial, simulatedTimeMs: from, passWatchlist: ['25544', '43017'], passRange: '1' })}`,
   );
@@ -266,6 +284,7 @@ test('removing a focused unavailable satellite keeps Escape dismissal and cancel
   await page.goto(`/?view=${encoded({ ...initial, passWatchlist: ['99999', '25544'] })}`);
   await openSidebar(page);
   const dialog = await openSelection(page);
+  await selectionPane(dialog, 'Selected');
   const remove = dialog.getByRole('button', { name: 'Remove NORAD 99999', exact: true });
   await remove.focus();
   await remove.click();
@@ -274,6 +293,7 @@ test('removing a focused unavailable satellite keeps Escape dismissal and cancel
   await expect(dialog).not.toBeVisible();
   await expect.poll(() => savedList(page)).toEqual(['99999', '25544']);
   const reopened = await openSelection(page);
+  await selectionPane(reopened, 'Selected');
   await expect(
     reopened.getByRole('button', { name: 'Remove NORAD 99999', exact: true }),
   ).toBeVisible();

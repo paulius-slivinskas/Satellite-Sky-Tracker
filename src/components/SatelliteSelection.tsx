@@ -1,4 +1,4 @@
-import { Button, Checkbox, Input, Label, Modal, TextField } from '@heroui/react';
+import { Button, Checkbox, Input, Label, Modal, Tabs, TextField } from '@heroui/react';
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FILTER_CONFIG, isAmateurSelectedName } from '../domain/config';
 import type { Satellite } from '../domain/types';
@@ -24,6 +24,7 @@ export function SatelliteSelection({
   triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [mobilePane, setMobilePane] = useState('search');
   const [draft, setDraft] = useState<string[]>([]);
   const [category, setCategory] = useState('all');
   const [query, setQuery] = useState('');
@@ -35,11 +36,15 @@ export function SatelliteSelection({
   useLayoutEffect(() => {
     if (!pendingFocus.current) return;
     const { id } = pendingFocus.current;
+    if (!id && mobilePane === 'selected' && window.innerWidth <= 720) {
+      setMobilePane('search');
+      return;
+    }
     pendingFocus.current = null;
     // Removing a focused row must not strand keyboard focus outside the dialog.
     const target = id ? removeButtons.current.get(id) : null;
     (target ?? searchInput.current)?.focus();
-  }, [draft]);
+  }, [draft, mobilePane]);
   const byNorad = useMemo(
     () => new Map(satellites.map((satellite) => [satellite.noradId, satellite])),
     [satellites],
@@ -91,6 +96,7 @@ export function SatelliteSelection({
   const changeOpen = (next: boolean) => {
     if (next) {
       setDraft([...new Set(value)]);
+      setMobilePane('search');
       setCategory('all');
       setQuery('');
       setLimit(PAGE_SIZE);
@@ -111,6 +117,52 @@ export function SatelliteSelection({
     pendingFocus.current = { id: null };
     setDraft([]);
   };
+  const categoryControls = (
+    <section className="satellite-selection-categories" aria-label="Browse categories">
+      <h3 className="satellite-selection-column-heading">Categories</h3>
+      <div
+        className="satellite-selection-category-list"
+        role="group"
+        aria-label="Satellite categories"
+      >
+        {[{ key: 'all', label: 'All satellites' }, ...FILTER_CONFIG].map((item) => (
+          <Button
+            key={item.key}
+            className="satellite-selection-category"
+            variant={category === item.key ? 'secondary' : 'ghost'}
+            aria-label={item.label}
+            aria-pressed={category === item.key}
+            onPress={() => {
+              setCategory(item.key);
+              setLimit(PAGE_SIZE);
+            }}
+          >
+            <span>{item.label}</span>
+            <span className="satellite-selection-count" aria-hidden="true">
+              {categories.get(item.key)?.length ?? 0}
+            </span>
+          </Button>
+        ))}
+      </div>
+    </section>
+  );
+  const searchField = (
+    <TextField
+      className="field satellite-selection-search"
+      value={query}
+      onChange={(next) => {
+        setQuery(next);
+        setLimit(PAGE_SIZE);
+      }}
+    >
+      <Label>Search satellites</Label>
+      <Input
+        ref={searchInput}
+        autoFocus={browseOnly}
+        placeholder={browseOnly ? 'Satellite name or NORAD ID' : 'Name or NORAD ID'}
+      />
+    </TextField>
+  );
   return (
     <Modal isOpen={open} onOpenChange={changeOpen}>
       <Button
@@ -121,7 +173,7 @@ export function SatelliteSelection({
         aria-describedby={summaryId}
       >
         <span className="satellite-selection-trigger-text">
-          <span className="satellite-selection-trigger-label">{triggerLabel}</span>
+          {!browseOnly && <span className="satellite-selection-trigger-label">{triggerLabel}</span>}
           <span className="satellite-selection-trigger-summary" id={summaryId}>
             {summary}
           </span>
@@ -148,6 +200,7 @@ export function SatelliteSelection({
         >
           <Modal.Dialog
             className={`satellite-selection-dialog ${browseOnly ? 'satellite-search-dialog' : ''}`}
+            data-mobile-pane={mobilePane}
           >
             <Modal.CloseTrigger
               aria-label={browseOnly ? 'Close satellite search' : 'Close satellite selection'}
@@ -156,60 +209,35 @@ export function SatelliteSelection({
               <Modal.Heading>
                 {browseOnly ? 'Search satellites' : 'Satellite selection'}
               </Modal.Heading>
-              <p>
-                {browseOnly
-                  ? 'Find a satellite and show it on the map.'
-                  : 'Choose the satellites to include in pass predictions.'}
-              </p>
+              {categoryControls}
+              {!browseOnly && (
+                <Tabs
+                  className="satellite-selection-mobile-tabs"
+                  selectedKey={mobilePane}
+                  onSelectionChange={(key) => setMobilePane(String(key))}
+                >
+                  <Tabs.ListContainer>
+                    <Tabs.List aria-label="Satellite selection sections">
+                      <Tabs.Tab id="search">
+                        Search
+                        <Tabs.Indicator />
+                      </Tabs.Tab>
+                      <Tabs.Tab id="selected">
+                        Selected ({draft.length})<Tabs.Indicator />
+                      </Tabs.Tab>
+                    </Tabs.List>
+                  </Tabs.ListContainer>
+                </Tabs>
+              )}
             </Modal.Header>
             <Modal.Body className="satellite-selection-body">
+              {browseOnly && <div className="satellite-search-input">{searchField}</div>}
               <div className="satellite-selection-columns">
-                <section className="satellite-selection-categories" aria-label="Browse categories">
-                  <h3 className="satellite-selection-column-heading">Categories</h3>
-                  <div
-                    className="satellite-selection-category-list"
-                    role="group"
-                    aria-label="Satellite categories"
-                  >
-                    {[{ key: 'all', label: 'All satellites' }, ...FILTER_CONFIG].map((item) => (
-                      <Button
-                        key={item.key}
-                        className="satellite-selection-category"
-                        variant={category === item.key ? 'secondary' : 'ghost'}
-                        aria-label={item.label}
-                        aria-pressed={category === item.key}
-                        onPress={() => {
-                          setCategory(item.key);
-                          setLimit(PAGE_SIZE);
-                        }}
-                      >
-                        <span>{item.label}</span>
-                        <span className="satellite-selection-count" aria-hidden="true">
-                          {categories.get(item.key)?.length ?? 0}
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                </section>
                 <section
                   className="satellite-selection-available"
                   aria-label="Available satellites"
                 >
-                  <TextField
-                    className="field satellite-selection-search"
-                    value={query}
-                    onChange={(next) => {
-                      setQuery(next);
-                      setLimit(PAGE_SIZE);
-                    }}
-                  >
-                    <Label>Search satellites</Label>
-                    <Input
-                      ref={searchInput}
-                      autoFocus={browseOnly}
-                      placeholder={browseOnly ? 'Satellite name or NORAD ID' : 'Name or NORAD ID'}
-                    />
-                  </TextField>
+                  {!browseOnly && searchField}
                   {!browseOnly && (
                     <div
                       className="satellite-selection-bulk-actions"

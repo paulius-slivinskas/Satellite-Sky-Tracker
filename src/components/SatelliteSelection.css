@@ -326,3 +326,184 @@
     width: calc(100vw - 24px);
   }
 }
+
+.satellite-search-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.satellite-search-field-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+.satellite-search-field .satellite-selection-trigger {
+  min-height: 44px;
+  padding: 10px 12px;
+}
+.satellite-search-field .satellite-selection-trigger-label {
+  display: none;
+}
+.satellite-search-field .satellite-selection-trigger-summary {
+  font-weight: 400;
+}
+.satellite-search-input {
+  padding: 16px 18px;
+  flex-shrink: 0;
+}
+.satellite-search-dialog .satellite-selection-body {
+  display: flex;
+  flex-direction: column;
+}
+@media (max-width: 720px) {
+  .satellite-search-field .satellite-selection-trigger-summary {
+    font-size: 16px;
+  }
+  .satellite-search-dialog .satellite-selection-header {
+    padding: 18px 56px 12px 16px;
+  }
+  .satellite-search-dialog .satellite-selection-header p {
+    display: none;
+  }
+  .satellite-search-input {
+    padding: 12px 16px;
+  }
+  .satellite-search-dialog .satellite-selection-body {
+    overflow: hidden;
+  }
+  .satellite-search-dialog .satellite-selection-columns {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .satellite-search-dialog .satellite-selection-categories {
+    padding: 8px 16px;
+    flex-shrink: 0;
+  }
+  .satellite-search-dialog .satellite-selection-categories > h3 {
+    display: none;
+  }
+  .satellite-search-dialog .satellite-selection-available {
+    flex: 1;
+    min-height: 0;
+    padding: 12px 16px;
+  }
+  .satellite-search-dialog .satellite-selection-list {
+    max-height: none;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+.satellite-search-dialog {
+  width: min(560px, calc(100vw - 24px));
+}
+.satellite-search-dialog .satellite-selection-header {
+  padding: 20px 16px 12px;
+}
+.satellite-search-dialog .satellite-selection-header > h2 {
+  padding-right: 44px;
+}
+.satellite-search-dialog .satellite-selection-categories {
+  padding: 12px 0 0;
+  border: 0;
+}
+.satellite-search-dialog .satellite-selection-categories > h3 {
+  display: none;
+}
+.satellite-search-dialog .satellite-selection-category-list {
+  flex-direction: row;
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+.satellite-search-dialog .satellite-selection-category {
+  width: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.satellite-search-dialog .satellite-selection-columns {
+  display: flex;
+  flex-direction: column;
+  height: min(440px, calc(100dvh - 250px));
+  min-height: 0;
+}
+.satellite-search-dialog .satellite-selection-list {
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.satellite-selection-dialog:not(.satellite-search-dialog) {
+  width: min(820px, calc(100vw - 24px));
+}
+.satellite-selection-header {
+  padding: 20px 16px 12px;
+}
+.satellite-selection-header > h2 {
+  padding-right: 44px;
+}
+.satellite-selection-header .satellite-selection-categories {
+  padding: 12px 0 0;
+  border: 0;
+}
+.satellite-selection-header .satellite-selection-column-heading {
+  display: none;
+}
+.satellite-selection-header .satellite-selection-category-list {
+  flex-direction: row;
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+.satellite-selection-header .satellite-selection-category {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+}
+.satellite-selection-columns {
+  grid-template-columns: minmax(0, 1fr) 290px;
+}
+.satellite-selection-mobile-tabs {
+  display: none;
+}
+@media (max-width: 720px) {
+  .satellite-selection-mobile-tabs {
+    display: block;
+    margin-top: 12px;
+  }
+  .satellite-selection-mobile-tabs .tabs__list {
+    width: 100%;
+  }
+  .satellite-selection-mobile-tabs .tabs__tab {
+    flex: 1;
+  }
+  .satellite-selection-dialog:not(.satellite-search-dialog) .satellite-selection-body {
+    overflow: hidden;
+  }
+  .satellite-selection-dialog:not(.satellite-search-dialog) .satellite-selection-columns {
+    height: min(480px, calc(100dvh - 280px));
+    min-height: 0;
+    overflow: hidden;
+  }
+  .satellite-selection-dialog:not(.satellite-search-dialog) .satellite-selection-available,
+  .satellite-selection-dialog:not(.satellite-search-dialog) .satellite-selection-selected {
+    flex: 1;
+    overflow: hidden;
+  }
+  .satellite-selection-dialog:not(.satellite-search-dialog) .satellite-selection-list,
+  .satellite-selection-dialog:not(.satellite-search-dialog) .satellite-selection-selected-list {
+    max-height: none;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .satellite-selection-dialog[data-mobile-pane='search'] .satellite-selection-selected,
+  .satellite-selection-dialog[data-mobile-pane='selected'] .satellite-selection-available {
+    display: none;
+  }
+  .satellite-selection-dialog:not(.satellite-search-dialog)[data-mobile-pane='selected']
+    .satellite-selection-header
+    .satellite-selection-categories {
+    display: none;
+  }
+}

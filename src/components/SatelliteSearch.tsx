@@ -15,13 +15,16 @@ export function SatelliteSearch({
   onSelect: (norad: string | null) => void;
 }) {
   return (
-    <SatelliteSelection
-      browseOnly
-      triggerLabel={label}
-      satellites={satellites}
-      value={value ? [value] : []}
-      tracked={tracked}
-      onApply={(ids) => onSelect(ids[0] ?? null)}
-    />
+    <div className="satellite-search-field">
+      <span className="satellite-search-field-label">{label}</span>
+      <SatelliteSelection
+        browseOnly
+        triggerLabel={label}
+        satellites={satellites}
+        value={value ? [value] : []}
+        tracked={tracked}
+        onApply={(ids) => onSelect(ids[0] ?? null)}
+      />
+    </div>
   );
 }
