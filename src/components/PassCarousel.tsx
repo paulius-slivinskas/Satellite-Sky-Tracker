@@ -4,6 +4,7 @@ import type { SatellitePass, Satellite, ViewState } from '../domain/types';
 import { cardinal, lookAngles } from '../domain/orbits';
 
 export function PassCarousel({
+  layout = 'carousel',
   state,
   satellites,
   passes,
@@ -13,6 +14,7 @@ export function PassCarousel({
   choosePass,
   findInSky,
 }: {
+  layout?: 'carousel' | 'vertical';
   state: ViewState;
   satellites: Satellite[];
   passes: SatellitePass[];
@@ -25,6 +27,7 @@ export function PassCarousel({
   const [expandedPasses, setExpandedPasses] = useState<Set<string>>(() => new Set());
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (layout === 'vertical') return;
     const element = container.current;
     if (!element) return;
     const app = element.closest<HTMLElement>('.app');
@@ -176,7 +179,7 @@ export function PassCarousel({
       element.removeEventListener('click', click, true);
       app?.style.removeProperty('--pass-carousel-height');
     };
-  }, []);
+  }, [layout]);
   const fmt = (value: number) =>
     new Date(value).toLocaleTimeString([], {
       hour: '2-digit',
@@ -187,7 +190,12 @@ export function PassCarousel({
   const direction = (az: number | null) =>
     az === null ? 'N/A' : `${cardinal(az)} (${az.toFixed(1)}°)`;
   return (
-    <div ref={container} className="pass-carousel" role="region" aria-label="Upcoming passes">
+    <div
+      ref={container}
+      className={`pass-carousel ${layout === 'vertical' ? 'pass-sidebar-cards' : ''}`}
+      role="region"
+      aria-label="Upcoming passes"
+    >
       <ul className="passes-list">
         {passes.map((pass, i) => {
           const passKey = `${pass.noradId}-${pass.start}`;

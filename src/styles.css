@@ -1776,6 +1776,25 @@ h3 {
   }
 }
 @media (min-width: 1101px) {
+  .pass-carousel.pass-sidebar-cards {
+    position: static;
+    padding: 12px 0;
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+  .pass-sidebar-cards .passes-list {
+    width: 100%;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pass-sidebar-cards .passes-list > li {
+    flex: 0 0 auto;
+  }
+  .sidebar-main:has(.pass-sidebar-cards) {
+    min-height: 0;
+    overflow: hidden;
+  }
   .right-stack {
     top: var(--overlay-gap);
   }

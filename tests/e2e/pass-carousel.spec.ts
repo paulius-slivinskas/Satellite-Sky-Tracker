@@ -3,6 +3,7 @@ import { test, expect, prepare, encoded } from './fixtures';
 test('map carousel scrolls, keeps actions, and highlights hovered passes over a pinned selection', async ({
   page,
 }, testInfo) => {
+  test.skip(!testInfo.project.use.hasTouch);
   await prepare(page);
   await page.goto(
     `/?view=${encoded({ version: 2, tab: 'passes', categories: ['iss'], playing: false, simulatedTimeMs: Date.parse('2024-02-29T12:30:00Z'), passRange: '3', passWatchlist: ['25544'], observer: { lat: 54.6872, lon: 25.2797, alt: 120, name: 'Vilnius' } })}`,
@@ -130,4 +131,36 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
   else await cards.last().locator('.pass-header').click();
   await expect(page.locator('.sat-info-panel')).toBeVisible();
   await page.screenshot({ path: `/tmp/pass-carousel-${testInfo.project.name}.png` });
+});
+
+test('desktop passes stack in the sidebar and move to the map carousel on mobile', async ({
+  page,
+}, info) => {
+  test.skip(!!info.project.use.hasTouch);
+  await prepare(page);
+  await page.goto(
+    `/?view=${encoded({ version: 2, tab: 'passes', categories: ['iss'], playing: false, simulatedTimeMs: Date.parse('2024-02-29T12:30:00Z'), passRange: '3', passWatchlist: ['25544'], observer: { lat: 54.6872, lon: 25.2797, alt: 120, name: 'Vilnius' } })}`,
+  );
+  const cards = page.locator('.sidebar .pass-item');
+  await expect(cards.first()).toBeVisible();
+  await expect(page.locator('.map-wrap > .pass-carousel')).toHaveCount(0);
+  const first = (await cards.nth(0).boundingBox())!;
+  const second = (await cards.nth(1).boundingBox())!;
+  expect(second.x).toBeCloseTo(first.x, 0);
+  expect(second.y).toBeGreaterThanOrEqual(first.y + first.height);
+  await expect(page.locator('.sidebar-stack')).toHaveCSS('top', '12px');
+  await cards.first().hover();
+  await expect(cards.first()).toHaveClass(/pass-item-hover/);
+  await cards.first().click();
+  await expect(page.locator('.sat-info-panel')).toBeVisible();
+  const scroller = page.locator('.sidebar-scroll');
+  await scroller.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  expect(await scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await expect(cards.last()).toBeVisible();
+  await page.screenshot({ path: '/tmp/desktop-sidebar-passes.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.sidebar .pass-item')).toHaveCount(0);
+  await expect(page.locator('.map-wrap > .pass-carousel .pass-item').first()).toBeAttached();
 });

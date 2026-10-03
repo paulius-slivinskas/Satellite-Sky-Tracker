@@ -31,6 +31,13 @@ export default function App() {
   stateRef.current = state;
   const [collapsed, setCollapsed] = useState(() => window.innerWidth <= 1100);
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1101px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1101px)');
+    const update = () => setDesktop(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [locationOpen, setLocationOpen] = useState(false);
   const [activePass, setActivePass] = useState<number | null>(null);
   const [selectedPassKey, setSelectedPassKey] = useState<string | null>(null);
@@ -189,9 +196,25 @@ export default function App() {
       </svg>
     </Button>
   );
+  const passCards =
+    predictions.passes.length > 0 ? (
+      <PassCarousel
+        layout={desktop ? 'vertical' : 'carousel'}
+        state={state}
+        satellites={catalog.satellites}
+        passes={predictions.passes}
+        time={time}
+        active={activePass ?? selectedPass}
+        hover={setActivePass}
+        choosePass={(index, showInfo = false) =>
+          choosePass(index, showInfo || window.innerWidth > 1100)
+        }
+        findInSky={(satellite, pass) => setFinderTarget({ satellite, pass })}
+      />
+    ) : null;
   return (
     <div
-      className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''} ${sheetExpanded ? 'sheet-expanded' : ''} ${predictions.passes.length ? 'has-pass-carousel' : ''}`}
+      className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''} ${sheetExpanded ? 'sheet-expanded' : ''} ${!desktop && predictions.passes.length ? 'has-pass-carousel' : ''}`}
     >
       {collapsed && (
         <Button
@@ -411,6 +434,7 @@ export default function App() {
                   notificationControls={<PassNotificationControls notifications={notifications} />}
                 />
                 {!state.observer && locationCard}
+                {desktop && passCards}
               </Tabs.Panel>
               <Tabs.Panel id="settings">
                 <div className="panel-content">
@@ -484,20 +508,7 @@ export default function App() {
           }}
           onHoverPass={setActivePass}
         />
-        {predictions.passes.length > 0 && (
-          <PassCarousel
-            state={state}
-            satellites={catalog.satellites}
-            passes={predictions.passes}
-            time={time}
-            active={activePass ?? selectedPass}
-            hover={setActivePass}
-            choosePass={(index, showInfo = false) =>
-              choosePass(index, showInfo || window.innerWidth > 1100)
-            }
-            findInSky={(satellite, pass) => setFinderTarget({ satellite, pass })}
-          />
-        )}
+        {!desktop && passCards}
         <CatalogNotice catalog={catalog} onRetry={catalog.refresh} timeFormat={state.timeFormat} />
         {selected && detailsOpen && (
           <div className="right-stack">
