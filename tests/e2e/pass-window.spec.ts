@@ -117,7 +117,16 @@ test('trajectory selection opens satellite details and closing them preserves pa
   await card.getByRole('button', { name: 'Navigate', exact: true }).click();
   const finder = page.getByRole('dialog', { name: 'Satellite sky finder' });
   await expect(finder.getByRole('region', { name: 'Pass progress' })).toBeVisible();
-  await expect(finder.getByText(/Not started yet/)).toBeVisible();
+  await expect(finder.getByText(/Not started yet/)).toHaveCount(0);
+  const countdown = finder.getByRole('timer', { name: 'Until pass start' });
+  await expect(countdown).toHaveText(/\d{2}:\d{2}:\d{2}/);
+  await expect(finder.getByText('until pass start', { exact: true })).toBeVisible();
+  await page.clock.setFixedTime(new Date(Math.ceil(start) - 65000));
+  await expect(countdown).toHaveText('00:01:05');
+  await page.clock.setFixedTime(new Date(Math.ceil(start) - 64000));
+  await expect(countdown).toHaveText('00:01:04');
+  await page.clock.setFixedTime(new Date(Math.ceil(start)));
+  await expect(countdown).toHaveCount(0);
   await page.clock.setFixedTime(new Date((start + end) / 2));
   await expect(finder.getByRole('img')).toHaveAttribute('aria-label', /^Pass 50 percent complete/);
   expect(Number(await finder.locator('.finder-pass-dot').getAttribute('cx'))).toBeCloseTo(200, 1);

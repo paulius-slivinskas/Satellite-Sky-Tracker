@@ -115,6 +115,14 @@ function FinderView({
   }, [satellite, observer, minute, pass]);
   const shownPass = pass ?? derivedPass;
   const progress = shownPass ? passProgress(shownPass, now) : null;
+  const remaining = shownPass ? Math.max(0, Math.ceil((shownPass.start - now) / 1000)) : 0;
+  const countdown = [
+    Math.floor(remaining / 3600),
+    Math.floor((remaining % 3600) / 60),
+    remaining % 60,
+  ]
+    .map((value) => String(value).padStart(2, '0'))
+    .join(':');
   const clock = (time: number) =>
     new Date(time).toLocaleTimeString([], {
       hour: '2-digit',
@@ -255,7 +263,14 @@ function FinderView({
         </div>
         {shownPass && progress && (
           <section className="finder-pass" aria-label="Pass progress">
-            {progress.status === 'upcoming' && <p className="finder-pass-state">Not started yet</p>}
+            {progress.status === 'upcoming' && (
+              <div className="finder-countdown">
+                <p role="timer" aria-label="Until pass start" aria-live="off">
+                  {countdown}
+                </p>
+                <span>until pass start</span>
+              </div>
+            )}
             {progress.status === 'complete' && <p className="finder-pass-state">Pass complete</p>}
             <svg
               viewBox="0 0 400 146"
