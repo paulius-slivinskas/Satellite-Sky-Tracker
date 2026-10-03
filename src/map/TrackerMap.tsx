@@ -2,15 +2,13 @@ import { memo, useEffect, useRef, useState } from 'react';
 import { Button } from '@heroui/react';
 import { useDeviceOrientation } from '../state/deviceOrientation';
 import { HeadingControl } from '../components/HeadingControl';
-import { ThemeControl } from '../components/ThemeControl';
 import L from 'leaflet';
 import { maplibreGL } from '@maplibre/maplibre-gl-leaflet';
 import { setWorkerUrl } from 'maplibre-gl';
 import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { basemapStyle, mapAttribution } from './basemapStyle';
-import { useMapLayer, type MapLayer } from '../state/mapLayer';
-import { MapLayerControl } from '../components/MapLayerControl';
+import type { MapLayer } from '../state/mapLayer';
 import type { Theme } from '../state/theme';
 import { StationaryTrack } from './StationaryTrack';
 import { enforceMapBounds } from './mapBounds';
@@ -27,7 +25,7 @@ import {
 import type { Observer, SatellitePass, Position, Satellite, ViewState } from '../domain/types';
 interface Props {
   theme: Theme;
-  onThemeChange: (next: Theme) => void;
+  mapLayer: MapLayer;
   satellites: Satellite[];
   positions: Map<string, Position>;
   nextPositions: Map<string, Position>;
@@ -64,7 +62,7 @@ const escape = (value: string) =>
   );
 setWorkerUrl(mapWorkerUrl);
 export const TrackerMap = memo(function TrackerMap(props: Props) {
-  const [mapLayer, setMapLayer] = useMapLayer();
+  const { mapLayer } = props;
   const orientation = useDeviceOrientation();
   const [zoomLimits, setZoomLimits] = useState({ atMin: false, atMax: false });
   const container = useRef<HTMLDivElement>(null);
@@ -567,8 +565,6 @@ export const TrackerMap = memo(function TrackerMap(props: Props) {
         }
       />
       <div className="map-controls" role="group" aria-label="Map controls">
-        <ThemeControl theme={props.theme} onChange={props.onThemeChange} />
-        <MapLayerControl layer={mapLayer} onChange={setMapLayer} />
         <HeadingControl
           {...orientation}
           hasObserver={!!props.observer}

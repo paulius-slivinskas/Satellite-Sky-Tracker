@@ -46,7 +46,7 @@ test('mobile navigation opens bottom sheets and keeps map controls outside them'
   expect((await page.locator('.sidebar-stack').boundingBox())!.y).toBe(0);
   await page.getByRole('button', { name: 'Collapse sheet', exact: true }).tap();
   await page.getByRole('button', { name: 'Close sidebar', exact: true }).tap();
-  await expect(page.locator('.theme-control')).toBeVisible();
+  await expect(page.locator('.theme-control')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('mobile-map-nav.png') });
   await nav.getByRole('tab', { name: 'Filters', exact: true }).tap();
   await expect(page.locator('.sidebar-stack')).toHaveCSS('transform', 'none');

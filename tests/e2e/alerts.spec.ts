@@ -1,4 +1,4 @@
-import { test, expect, prepare, openSidebar, LINE1, LINE2 } from './fixtures';
+import { test, expect, setAppearance, prepare, openSidebar, LINE1, LINE2 } from './fixtures';
 import type { Page } from '@playwright/test';
 
 const freshTime = Date.parse('2024-02-29T12:30:00Z');
@@ -68,8 +68,7 @@ test('a failed Weather feed produces a specific HeroUI warning while other satel
   const retry = alert(page).getByRole('button', { name: 'Retry', exact: true });
   await expect(retry).toHaveClass(/\bbutton--tertiary\b/);
   for (const mode of ['dark', 'light']) {
-    if (mode === 'light')
-      await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+    if (mode === 'light') await setAppearance(page, 'light');
     const colors = await retry.evaluate((button) => ({
       action: getComputedStyle(button).color,
       neutral: getComputedStyle(document.body).color,
@@ -200,7 +199,7 @@ test('dismissed catalog issue stays hidden across rerenders, background checks a
     .getByRole('button', { name: 'Dismiss Some orbital feeds are unavailable', exact: true })
     .click();
   await expect(alert(page)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await setAppearance(page, 'light');
   await expect(alert(page)).toHaveCount(0);
 
   const previousWeatherRequests = weatherRequests;

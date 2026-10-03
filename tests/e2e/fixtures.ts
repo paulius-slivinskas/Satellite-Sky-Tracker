@@ -118,3 +118,23 @@ export async function openSidebar(page: Page) {
 export function encoded(value: unknown) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
+
+export async function setAppearance(page: Page, mode: 'light' | 'dark') {
+  const wasClosed = await page
+    .getByRole('button', { name: 'Open sidebar', exact: true })
+    .isVisible();
+  const tab = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('satapp_view_v2') || '{}').tab || 'filters',
+  );
+  await openSidebar(page);
+  await page.getByRole('tab', { name: 'Settings', exact: true }).last().click();
+  await page.getByRole('button', { name: /Appearance/ }).click();
+  await page
+    .getByRole('option', { name: mode === 'light' ? 'Light mode' : 'Dark mode', exact: true })
+    .click();
+  await page
+    .getByRole('tab', { name: tab[0].toUpperCase() + tab.slice(1), exact: true })
+    .last()
+    .click();
+  if (wasClosed) await page.getByRole('button', { name: 'Close sidebar', exact: true }).click();
+}

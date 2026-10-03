@@ -1,4 +1,4 @@
-import { test, expect, prepare, openSidebar, encoded } from './fixtures';
+import { test, expect, setAppearance, prepare, openSidebar, encoded } from './fixtures';
 import type { Page } from '@playwright/test';
 
 async function setup(page: Page) {
@@ -76,7 +76,7 @@ test('satellite and transmitter use HeroUI cards with a header, keyboard-operabl
     }),
   ).toBe(true);
   if (viewport.width <= 680) await close.click();
-  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await setAppearance(page, 'light');
   if (viewport.width <= 680) await selectIss(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expect(panel).toBeVisible();
@@ -148,7 +148,7 @@ test('pass HeroUI cards retain numerical details and focus/hover selection', asy
   await expect(cards.first()).not.toHaveClass(/pass-item-hover/);
   const sidebarClose = page.getByRole('button', { name: 'Close sidebar', exact: true });
   if (await sidebarClose.isVisible()) await sidebarClose.click();
-  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  await setAppearance(page, 'light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await openSidebar(page);
   await expect(cards).toHaveCount(3);

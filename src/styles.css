@@ -1723,6 +1723,34 @@ h3 {
   right: 11px;
   left: auto;
 }
+@media (max-width: 680px) {
+  .sidebar-stack {
+    top: auto;
+    height: fit-content;
+    max-height: 85dvh;
+  }
+  .sidebar-tab-settings {
+    height: 50dvh;
+  }
+  .sidebar-stack .panel-content > h2 {
+    display: none;
+  }
+  .sheet-expanded .sidebar-stack {
+    top: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+  .app:not(.sidebar-collapsed) .sidebar-stack .sidebar-close {
+    position: absolute;
+    top: 34px;
+    right: 12px;
+    left: auto;
+    z-index: 4;
+  }
+  .sheet-expanded .sidebar-stack .sidebar-close {
+    top: 10px;
+  }
+}
 @media (min-width: 1101px) {
   .right-stack {
     top: var(--overlay-gap);

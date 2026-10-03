@@ -16,12 +16,14 @@ import { PassCarousel } from './components/PassCarousel';
 import { SatelliteInfo } from './components/SatelliteInfo';
 import { SatelliteFinderDialog } from './components/SatelliteFinder';
 import { useTheme } from './state/theme';
+import { MAP_LAYERS, useMapLayer, type MapLayer } from './state/mapLayer';
 import { CatalogNotice } from './components/CatalogNotice';
 import { usePassNotifications } from './state/notifications';
 import { PassNotificationControls } from './components/PassNotificationControls';
 import { AppAlert } from './components/AppAlert';
 export default function App() {
   const [theme, setTheme] = useTheme();
+  const [mapLayer, setMapLayer] = useMapLayer();
   const [state, dispatch] = useReducer(viewReducer, undefined, initialView);
   const catalog = useCatalog();
   const { time, readTime } = useSimulation(state.simulatedTimeMs, state.playing, state.speed);
@@ -191,14 +193,7 @@ export default function App() {
     <div
       className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''} ${sheetExpanded ? 'sheet-expanded' : ''} ${predictions.passes.length ? 'has-pass-carousel' : ''}`}
     >
-      {!collapsed ? (
-        <CloseButton
-          className="sidebar-toggle sidebar-close"
-          aria-label="Close sidebar"
-          aria-expanded="true"
-          onPress={() => setCollapsed(true)}
-        />
-      ) : (
+      {collapsed && (
         <Button
           className="sidebar-toggle"
           variant="secondary"
@@ -238,6 +233,7 @@ export default function App() {
           selectedKey={state.tab}
           onSelectionChange={(key) => {
             setDetailsOpen(false);
+            setSheetExpanded(false);
             patch({
               tab: String(key) as ViewState['tab'],
 
@@ -267,7 +263,15 @@ export default function App() {
           onOpenChange={setLocationOpen}
         />
       )}
-      <div className="sidebar-stack">
+      <div className={`sidebar-stack sidebar-tab-${state.tab}`}>
+        {!collapsed && (
+          <CloseButton
+            className="sidebar-toggle sidebar-close"
+            aria-label="Close sidebar"
+            aria-expanded="true"
+            onPress={() => setCollapsed(true)}
+          />
+        )}
         <div className="mobile-sheet-header">
           <SheetHandle expanded={sheetExpanded} onChange={setSheetExpanded} />
           <h2>
@@ -412,6 +416,21 @@ export default function App() {
                 <div className="panel-content">
                   <h2>Settings</h2>
                   <Choice
+                    label="Appearance"
+                    value={theme}
+                    options={[
+                      ['light', 'Light mode'],
+                      ['dark', 'Dark mode'],
+                    ]}
+                    onChange={(value) => setTheme(value as typeof theme)}
+                  />
+                  <Choice
+                    label="Map layer"
+                    value={mapLayer}
+                    options={MAP_LAYERS.map((layer) => [layer.id, layer.name])}
+                    onChange={(value) => setMapLayer(value as MapLayer)}
+                  />
+                  <Choice
                     label="Time format"
                     value={state.timeFormat}
                     options={[
@@ -446,7 +465,7 @@ export default function App() {
       <main className="map-wrap">
         <TrackerMap
           theme={theme}
-          onThemeChange={setTheme}
+          mapLayer={mapLayer}
           satellites={frame.visible}
           positions={frame.positions}
           nextPositions={frame.nextPositions}
