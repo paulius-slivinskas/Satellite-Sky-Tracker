@@ -1728,6 +1728,21 @@ h3 {
     top: auto;
     height: fit-content;
     max-height: 85dvh;
+    padding-bottom: 0;
+    border: 0;
+  }
+  .sidebar-stack .sidebar-scroll {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+  .sat-info-panel {
+    border: 0;
+  }
+  .sat-info-head .sat-info-close {
+    right: 12px;
+  }
+  .app:not(.sidebar-collapsed) .mobile-bottom-nav::before,
+  .sat-info-open.sidebar-collapsed .mobile-bottom-nav::before {
+    content: none;
   }
   .sidebar-tab-settings {
     height: 50dvh;

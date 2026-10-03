@@ -20,6 +20,13 @@ test('mobile navigation opens bottom sheets and keeps map controls outside them'
     const sheet = (await page.locator('.sidebar-stack').boundingBox())!;
     expect(sheet.y).toBeGreaterThan(0);
     expect(sheet.y + sheet.height).toBeCloseTo(viewport.height, 0);
+    await expect(page.locator('.sidebar-stack')).toHaveCSS('padding-bottom', '0px');
+    await expect(page.locator('.sidebar-stack')).toHaveCSS('border-top-width', '0px');
+    expect(
+      await page
+        .locator('.mobile-bottom-nav')
+        .evaluate((el) => getComputedStyle(el, '::before').content),
+    ).toBe('none');
     await expect(page.locator('.sidebar-stack')).toHaveCSS('border-top-left-radius', '36px');
     const background = await page
       .locator('.sidebar-stack')
@@ -110,6 +117,11 @@ test('satellite details share the mobile sheet surface, header and expansion ges
   expect(box.y).toBeCloseTo(viewport.height * 0.15, 0);
   expect(box.y + box.height).toBeCloseTo(viewport.height, 0);
   await expect(panel).toHaveCSS('background-color', 'rgb(12, 12, 12)');
+  await expect(panel).toHaveCSS('border-top-width', '0px');
+  expect(
+    (await panel.locator('.sat-info-content').boundingBox())!.y +
+      (await panel.locator('.sat-info-content').boundingBox())!.height,
+  ).toBeCloseTo(viewport.height, 0);
   await expect(page.getByRole('button', { name: 'Copy share link', exact: true })).toHaveCount(0);
   const title = (await panel.locator('.sat-info-head h2').boundingBox())!;
   const star = (await panel
