@@ -61,6 +61,8 @@ Optional variables for the traditional Node deployment:
 | `server.js`, `services/`, `lib/`, `config/` | Radio API, normalization, cache, and configured radio data.                       |
 | `tests/`                                    | Deterministic unit, server, and browser regression coverage.                      |
 
+Mobile tabs and satellite details use matching bottom sheets with centered titles, opaque surfaces behind the bottom navigation, and scrolling content. Tap the handle or swipe it up to expand to the top, and swipe down or tap it again to return. Satellite details place the tracking star left and close action right; sharing is no longer an action in that panel. Filters keep the Search field below their sheet header.
+
 On mobile, the Current location card opens a fullscreen picker with device location, place search and editable coordinates. Before choosing a location the card appears below Filters, Passes and Settings; afterward it remains only in Settings.
 
 React owns application state. Leaflet owns map layers through the map adapter. Orbit functions receive the observer, altitude, and time explicitly, without reading DOM controls. Pass prediction retains the original five-second elevation search and two-second footprint-boundary sampling.

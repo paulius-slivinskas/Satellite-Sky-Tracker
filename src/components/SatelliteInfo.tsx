@@ -4,6 +4,7 @@ import { loadSatelliteInfo, type SatelliteInfo as Info } from '../data/radio';
 import { orbitalParams } from '../domain/orbits';
 import type { Frequency, Observer, Satellite } from '../domain/types';
 import { satelliteAliases } from '../domain/satelliteNames';
+import { SheetHandle } from './SheetHandle';
 import { AppAlert } from './AppAlert';
 import { ReceptionPanel } from './ReceptionPanel';
 import { SatelliteFinder } from './SatelliteFinder';
@@ -21,7 +22,8 @@ export function SatelliteInfo({
   tracked,
   onTrack,
   onClose,
-  onShare,
+  expanded,
+  onExpandedChange,
   observer = null,
 }: {
   sat: Satellite;
@@ -29,17 +31,16 @@ export function SatelliteInfo({
   tracked: boolean;
   onTrack: () => void;
   onClose: () => void;
-  onShare: () => Promise<void>;
+  expanded: boolean;
+  onExpandedChange: (value: boolean) => void;
 }) {
   const [info, setInfo] = useState<Info | null>(null);
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
-  const [shareStatus, setShareStatus] = useState('');
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setInfo(null);
-    setShareStatus('');
     loadSatelliteInfo(sat.noradId, controller.signal)
       .then((value) => {
         if (!controller.signal.aborted) setInfo(value);
@@ -102,40 +103,10 @@ export function SatelliteInfo({
         role="complementary"
         aria-label={`${sat.name} satellite details`}
       >
+        <SheetHandle expanded={expanded} onChange={onExpandedChange} />
         <Card.Header className="sat-info-head">
           <h2>{sat.name}</h2>
           <div className="sat-info-actions">
-            <Tooltip>
-              <Button
-                size="sm"
-                variant="ghost"
-                isIconOnly
-                aria-label="Copy share link"
-                onPress={() => {
-                  void onShare()
-                    .then(() => setShareStatus('Link copied'))
-                    .catch(() =>
-                      setShareStatus('Could not copy link. Check clipboard permission.'),
-                    );
-                }}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="18"
-                  height="18"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="m10 13 4-4m-6 6-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 2 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0"
-                    transform="translate(1 1)"
-                  />
-                </svg>
-              </Button>
-              <Tooltip.Content>Copy share link</Tooltip.Content>
-            </Tooltip>
             <Tooltip>
               <Button
                 size="sm"
@@ -154,8 +125,10 @@ export function SatelliteInfo({
                   strokeWidth="1.6"
                   aria-hidden="true"
                 >
-                  <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" />
-                  <circle cx="12" cy="12" r="3" />
+                  <path
+                    d="m12 3 2.8 5.7 6.3.9-4.5 4.4 1.1 6.2-5.7-3-5.7 3 1.1-6.2-4.5-4.4 6.3-.9Z"
+                    fill={tracked ? 'currentColor' : 'none'}
+                  />
                 </svg>
               </Button>
               <Tooltip.Content>
@@ -189,11 +162,7 @@ export function SatelliteInfo({
                   Also known as: {satelliteAliases(sat).join(' · ')}
                 </p>
               )}
-              {shareStatus && (
-                <AppAlert status={shareStatus === 'Link copied' ? 'success' : 'warning'}>
-                  {shareStatus}
-                </AppAlert>
-              )}
+
               <dl className="sat-kv-grid">
                 {rows.map(([label, value]) => (
                   <div className="sat-kv" key={label}>

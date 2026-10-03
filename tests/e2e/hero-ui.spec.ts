@@ -11,7 +11,7 @@ async function setup(page: Page) {
 async function selectIss(page: Page) {
   await openSidebar(page);
   await expect(page.locator('.sidebar-stack')).toHaveCSS('transform', 'none');
-  await page.getByRole('combobox', { name: 'Satellite search' }).fill('25544');
+  await page.getByRole('combobox', { name: 'Search' }).fill('25544');
   await page.getByRole('option', { name: /ISS/ }).click();
   await expect(page.getByRole('complementary', { name: 'ISS satellite details' })).toBeVisible();
 }
@@ -51,8 +51,8 @@ test('satellite and transmitter use HeroUI cards with an exterior, keyboard-oper
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
   if (viewport.width <= 680) {
-    expect(bounds.y + bounds.height).toBeLessThanOrEqual(panelBounds.y);
-    expect(bounds.x).toBeLessThan(viewport.width / 2);
+    expect(bounds.y).toBeGreaterThan(panelBounds.y);
+    expect(bounds.x).toBeGreaterThan(viewport.width / 2);
   } else {
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(panelBounds.x);
   }
@@ -64,7 +64,9 @@ test('satellite and transmitter use HeroUI cards with an exterior, keyboard-oper
       );
     }),
   ).toBe(true);
+  if (viewport.width <= 680) await close.click();
   await page.getByRole('button', { name: 'Switch to light mode', exact: true }).click();
+  if (viewport.width <= 680) await selectIss(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await expect(panel).toBeVisible();
   await expect(close).toBeVisible();

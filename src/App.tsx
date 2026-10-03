@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { FILTER_CONFIG, isAmateurSelectedName } from './domain/config';
 import { positionAt } from './domain/orbits';
 import type { Observer, Position, Satellite, SatellitePass, ViewState } from './domain/types';
-import { initialView, saveView, shareUrl, viewReducer } from './state/view';
+import { initialView, saveView, viewReducer } from './state/view';
 import { useCatalog, usePasses, useSimulation } from './state/hooks';
 import { TrackerMap } from './map/TrackerMap';
 import { Choice, Field, Toggle } from './components/Controls';
+import { SheetHandle } from './components/SheetHandle';
 import { SatelliteSearch } from './components/SatelliteSearch';
 import { LocationPanel } from './components/LocationPanel';
 import { TimePanel } from './components/TimePanel';
@@ -26,6 +27,7 @@ export default function App() {
   const stateRef = useRef(state);
   stateRef.current = state;
   const [collapsed, setCollapsed] = useState(() => window.innerWidth <= 1100);
+  const [sheetExpanded, setSheetExpanded] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
   const [activePass, setActivePass] = useState<number | null>(null);
   const [selectedPassKey, setSelectedPassKey] = useState<string | null>(null);
@@ -186,7 +188,7 @@ export default function App() {
   );
   return (
     <div
-      className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''}`}
+      className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''} ${sheetExpanded ? 'sheet-expanded' : ''}`}
     >
       {!collapsed ? (
         <CloseButton
@@ -266,14 +268,10 @@ export default function App() {
       )}
       <div className="sidebar-stack">
         <div className="mobile-sheet-header">
-          {state.tab === 'filters' && (
-            <SatelliteSearch
-              satellites={catalog.satellites}
-              value={state.searchNorad}
-              label="Satellite search"
-              onSelect={searchSelect}
-            />
-          )}
+          <SheetHandle expanded={sheetExpanded} onChange={setSheetExpanded} />
+          <h2>
+            {state.tab === 'filters' ? 'Filter' : state.tab[0].toUpperCase() + state.tab.slice(1)}
+          </h2>
         </div>
         <LocationPanel
           observer={state.observer}
@@ -316,7 +314,7 @@ export default function App() {
                     <SatelliteSearch
                       satellites={catalog.satellites}
                       value={state.searchNorad}
-                      label="Satellite search"
+                      label="Search"
                       onSelect={searchSelect}
                     />
                   </div>
@@ -489,7 +487,8 @@ export default function App() {
               tracked={state.tracked.includes(selected.id)}
               onTrack={() => dispatch({ type: 'toggleTracked', id: selected.id })}
               onClose={() => setDetailsOpen(false)}
-              onShare={() => navigator.clipboard.writeText(shareUrl(state, time))}
+              expanded={sheetExpanded}
+              onExpandedChange={setSheetExpanded}
             />
           </div>
         )}

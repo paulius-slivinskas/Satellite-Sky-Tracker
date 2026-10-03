@@ -35,7 +35,7 @@ test('search selects satellite, renders normalized radio and keeps tracking afte
   await prepare(page);
   await page.goto('/');
   await openSidebar(page);
-  const search = page.getByRole('combobox', { name: 'Satellite search' });
+  const search = page.getByRole('combobox', { name: 'Search' });
   await search.fill('25544');
   await page.getByRole('option', { name: /ISS/ }).click();
   const info = page.getByRole('complementary', { name: 'ISS satellite details' });

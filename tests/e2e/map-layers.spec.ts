@@ -106,7 +106,7 @@ test('map picker stays above zoom controls and clear of the satellite details pa
   const zoomBefore = (await zoom.boundingBox())!;
   expect(before.y + before.height).toBeLessThanOrEqual(zoomBefore.y);
   await openSidebar(page);
-  await page.getByRole('combobox', { name: 'Satellite search' }).fill('25544');
+  await page.getByRole('combobox', { name: 'Search' }).fill('25544');
   await page.getByRole('option', { name: /ISS/ }).click();
   const panel = page.getByRole('complementary', { name: 'ISS satellite details' });
   await expect(panel).toBeVisible();

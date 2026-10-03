@@ -1430,3 +1430,161 @@ h3 {
     font-size: 16px !important;
   }
 }
+
+.sheet-handle {
+  display: none;
+}
+@media (max-width: 680px) {
+  .app {
+    --mobile-sheet-top: 15dvh;
+  }
+  .app.sheet-expanded {
+    --mobile-sheet-top: 0px;
+  }
+  .sidebar-stack,
+  .right-stack {
+    top: var(--mobile-sheet-top);
+    bottom: 0;
+    height: auto;
+    left: 0;
+    right: 0;
+    width: 100%;
+    border-radius: 36px 36px 0 0;
+  }
+  .sheet-expanded .sidebar-stack,
+  .sheet-expanded .sat-info-panel {
+    border-radius: 0;
+  }
+  .sheet-handle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    align-self: center;
+    width: 64px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    cursor: ns-resize;
+    touch-action: none;
+  }
+  .sheet-handle span {
+    width: 32px;
+    height: 4px;
+    background: currentColor;
+    border-radius: 999px;
+    opacity: 0.5;
+  }
+  .mobile-sheet-header {
+    flex-direction: column;
+    flex-basis: 84px;
+    padding: 0 64px 0;
+    justify-content: flex-start;
+  }
+  .mobile-sheet-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .app:not(.sidebar-collapsed) .sidebar-toggle {
+    top: calc(var(--mobile-sheet-top) + 34px);
+  }
+  .desktop-filter-search {
+    display: block;
+  }
+  .sat-info-panel {
+    height: 100%;
+    max-height: none;
+    overflow: hidden;
+    padding: 0;
+    gap: 0;
+    border-radius: 36px 36px 0 0;
+    background: var(--mobile-panel-background);
+    border-bottom: 0;
+  }
+  .sat-info-close {
+    top: 34px;
+    right: 12px;
+    left: auto;
+    z-index: 2;
+  }
+  .sat-info-head {
+    position: relative;
+    flex-shrink: 0;
+    min-height: 60px;
+    padding: 0 64px;
+    justify-content: center;
+  }
+  .sat-info-head h2 {
+    width: 100%;
+    text-align: center;
+    font-size: 18px;
+    margin: 0;
+  }
+  .sat-info-actions {
+    position: absolute;
+    left: 12px;
+    top: 10px;
+  }
+  .sat-info-actions .button {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 50%;
+  }
+  .sat-info-content {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 12px 28px calc(88px + env(safe-area-inset-bottom));
+  }
+  .sat-info-open.sidebar-collapsed .mobile-bottom-nav::before {
+    content: '';
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(76px + env(safe-area-inset-bottom));
+    background: var(--mobile-panel-background);
+    z-index: -1;
+    pointer-events: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .right-stack {
+    z-index: 1250;
+  }
+  .sat-info-panel {
+    scrollbar-gutter: auto;
+  }
+  .sat-info-open .theme-control,
+  .sat-info-open .heading-control,
+  .sat-info-open .map-layer-control,
+  .sat-info-open .map-zoom-controls {
+    display: none;
+  }
+  .sheet-expanded .mobile-sheet-header {
+    padding-top: env(safe-area-inset-top);
+    flex-basis: calc(84px + env(safe-area-inset-top));
+  }
+  .sheet-expanded .sat-info-panel > .sheet-handle {
+    margin-top: env(safe-area-inset-top);
+  }
+  .sheet-expanded .sidebar-close,
+  .sheet-expanded .sat-info-close {
+    top: calc(34px + env(safe-area-inset-top));
+  }
+}
+@media (max-width: 680px) {
+  .sat-info-open .map-controls {
+    display: none;
+  }
+}

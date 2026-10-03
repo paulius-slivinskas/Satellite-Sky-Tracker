@@ -229,40 +229,25 @@ test('day ranges preserve full overlapping passes and an explicitly empty shared
   await expect(page.locator('.pass-item')).toHaveCount(0);
 });
 
-test('sharing a different map selection preserves the explicit multi-satellite watchlist', async ({
+test('restoring a different map selection preserves the explicit multi-satellite watchlist', async ({
   page,
 }) => {
   await setup(page);
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {
-        writeText: async (value: string) => {
-          (window as typeof window & { __sharedUrl?: string }).__sharedUrl = value;
-        },
-      },
-    });
-  });
   await page.goto(
     `/?view=${encoded({ ...initial, passWatchlist: ['25544', '43017'], passRange: 'upcoming5' })}`,
   );
   await openSidebar(page);
   await expect(page.locator('.pass-item')).toHaveCount(5, { timeout: 20000 });
   await page.getByRole('tab', { name: 'Filters', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Satellite search' }).fill('33591');
+  await page.getByRole('combobox', { name: 'Search' }).fill('33591');
   await page.getByRole('option', { name: /NOAA 19/ }).click();
-  await page.getByRole('button', { name: 'Copy share link', exact: true }).click();
   await expect
     .poll(() =>
-      page.evaluate(() => (window as typeof window & { __sharedUrl?: string }).__sharedUrl),
+      page.evaluate(() => JSON.parse(localStorage.getItem('satapp_view_v2') || '{}').selectedNorad),
     )
-    .toBeTruthy();
-  const url = await page.evaluate(
-    () => (window as typeof window & { __sharedUrl?: string }).__sharedUrl!,
-  );
-  const payload = JSON.parse(
-    Buffer.from(new URL(url).searchParams.get('view')!, 'base64url').toString('utf8'),
-  );
+    .toBe('33591');
+  const payload = await page.evaluate(() => JSON.parse(localStorage.getItem('satapp_view_v2')!));
+  const url = `/?view=${encoded(payload)}`;
   expect(payload.passWatchlist).toEqual(['25544', '43017']);
   expect(payload.selectedNorad).toBe('33591');
   await expect(page.locator('#map')).toHaveAttribute('data-pass-count', '5');

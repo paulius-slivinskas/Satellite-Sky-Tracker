@@ -48,9 +48,9 @@ export function SatelliteSearch({
         }
       }}
     >
-      <Label className="sr-only">{label}</Label>
+      <Label>{label}</Label>
       <ComboBox.InputGroup>
-        <Input placeholder="Search sat name or NORADID" />
+        <Input placeholder="Satellite name or NORAD ID" />
         <ComboBox.Trigger />
       </ComboBox.InputGroup>
       <ComboBox.Popover>

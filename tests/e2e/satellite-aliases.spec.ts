@@ -27,7 +27,7 @@ test('aliases are searchable and visible in Smart Search, details and pass selec
   });
   await page.goto('/');
   await openSidebar(page);
-  const search = page.getByRole('combobox', { name: 'Satellite search' });
+  const search = page.getByRole('combobox', { name: 'Search' });
   for (const [id, name, query] of entries) {
     await search.fill(query);
     const option = page.getByRole('option').filter({ hasText: name });

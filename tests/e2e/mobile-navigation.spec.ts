@@ -1,4 +1,4 @@
-import { test, expect, prepare } from './fixtures';
+import { test, expect, prepare, encoded } from './fixtures';
 
 test('mobile navigation opens bottom sheets and keeps map controls outside them', async ({
   page,
@@ -30,14 +30,21 @@ test('mobile navigation opens bottom sheets and keeps map controls outside them'
       .boundingBox())!;
     expect(viewport.width - close.x - close.width).toBeCloseTo(12, 0);
     expect(close.width).toBe(40);
+    const title = page.locator('.mobile-sheet-header h2');
+    await expect(title).toHaveText(name === 'Filters' ? 'Filter' : name);
+    const titleBox = (await title.boundingBox())!;
+    expect(titleBox.x + titleBox.width / 2).toBeCloseTo(viewport.width / 2, 0);
     if (name === 'Filters') {
-      const search = page.getByRole('combobox', { name: 'Satellite search', exact: true });
-      await expect(search).toHaveAttribute('placeholder', 'Search sat name or NORADID');
+      const search = page.getByRole('combobox', { name: 'Search', exact: true });
+      await expect(search).toHaveAttribute('placeholder', 'Satellite name or NORAD ID');
       const field = (await search.boundingBox())!;
-      expect(field.x + field.width).toBeLessThan(close.x);
-      expect(Math.abs(field.y + field.height / 2 - close.y - close.height / 2)).toBeLessThan(3);
+      expect(field.y).toBeGreaterThan(close.y + close.height);
+      await expect(page.getByText('Search', { exact: true })).toBeVisible();
     }
   }
+  await page.getByRole('button', { name: 'Expand sheet', exact: true }).tap();
+  expect((await page.locator('.sidebar-stack').boundingBox())!.y).toBe(0);
+  await page.getByRole('button', { name: 'Collapse sheet', exact: true }).tap();
   await page.getByRole('button', { name: 'Close sidebar', exact: true }).tap();
   await expect(page.locator('.theme-control')).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('mobile-map-nav.png') });
@@ -87,4 +94,49 @@ test('mobile location cards open fullscreen and remain only in Settings after se
     '54.6872',
   );
   await page.screenshot({ path: testInfo.outputPath('mobile-fullscreen-location.png') });
+});
+
+test('satellite details share the mobile sheet surface, header and expansion gesture', async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.use.hasTouch);
+  await page.setViewportSize({ width: 390, height: 600 });
+  await prepare(page);
+  await page.goto(`/?view=${encoded({ version: 2, selectedNorad: '25544' })}`);
+  const panel = page.getByRole('complementary', { name: 'ISS satellite details' });
+  await expect(panel).toBeVisible();
+  const viewport = page.viewportSize()!;
+  const box = (await panel.boundingBox())!;
+  expect(box.y).toBeCloseTo(viewport.height * 0.15, 0);
+  expect(box.y + box.height).toBeCloseTo(viewport.height, 0);
+  await expect(panel).toHaveCSS('background-color', 'rgb(12, 12, 12)');
+  await expect(page.getByRole('button', { name: 'Copy share link', exact: true })).toHaveCount(0);
+  const title = (await panel.locator('.sat-info-head h2').boundingBox())!;
+  const star = (await panel
+    .getByRole('button', { name: 'Add to Tracked', exact: true })
+    .boundingBox())!;
+  const close = (await page
+    .getByRole('button', { name: 'Close satellite details', exact: true })
+    .boundingBox())!;
+  expect(title.x + title.width / 2).toBeCloseTo(viewport.width / 2, 0);
+  expect(Math.abs(star.x - 12)).toBeLessThanOrEqual(2);
+  expect(close.x + close.width).toBeCloseTo(viewport.width - 12, 0);
+  await panel.getByRole('button', { name: 'Add to Tracked', exact: true }).tap();
+  await expect(
+    panel.getByRole('button', { name: 'Remove from Tracked', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  const handle = (await panel
+    .getByRole('button', { name: 'Expand sheet', exact: true })
+    .boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2, 5, { steps: 5 });
+  await page.mouse.up();
+  expect((await panel.boundingBox())!.y).toBe(0);
+  await panel.getByRole('button', { name: 'Collapse sheet', exact: true }).tap();
+  await page.screenshot({ path: testInfo.outputPath('mobile-satellite-sheet.png') });
+  await panel.locator('.sat-info-content').evaluate((el) => (el.scrollTop = el.scrollHeight));
+  expect(await panel.locator('.sat-info-content').evaluate((el) => el.scrollTop)).toBeGreaterThan(
+    0,
+  );
 });
