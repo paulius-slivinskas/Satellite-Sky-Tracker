@@ -12,6 +12,7 @@ import { SatelliteSearch } from './components/SatelliteSearch';
 import { LocationPanel } from './components/LocationPanel';
 import { TimePanel } from './components/TimePanel';
 import { PassesPanel } from './components/PassesPanel';
+import { PassCarousel } from './components/PassCarousel';
 import { SatelliteInfo } from './components/SatelliteInfo';
 import { SatelliteFinderDialog } from './components/SatelliteFinder';
 import { useTheme } from './state/theme';
@@ -188,7 +189,7 @@ export default function App() {
   );
   return (
     <div
-      className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''} ${sheetExpanded ? 'sheet-expanded' : ''}`}
+      className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${selected && detailsOpen ? 'sat-info-open' : ''} ${sheetExpanded ? 'sheet-expanded' : ''} ${predictions.passes.length ? 'has-pass-carousel' : ''}`}
     >
       {!collapsed ? (
         <CloseButton
@@ -400,14 +401,8 @@ export default function App() {
                   passes={predictions.passes}
                   loading={predictions.loading}
                   error={predictions.error}
-                  time={time}
                   readTime={readTime}
-                  active={selectedPass ?? activePass}
                   patch={patch}
-                  select={select}
-                  hover={setActivePass}
-                  choosePass={choosePass}
-                  findInSky={(satellite, pass) => setFinderTarget({ satellite, pass })}
                   notificationControls={<PassNotificationControls notifications={notifications} />}
                 />
                 {!state.observer && locationCard}
@@ -464,7 +459,7 @@ export default function App() {
           passes={predictions.passes}
           passSatellites={passSatellites}
           showPasses={state.showPassesOnMap}
-          activePass={selectedPass ?? activePass}
+          activePass={activePass ?? selectedPass}
           timeFormat={state.timeFormat}
           view={state.map}
           onSelect={select}
@@ -477,6 +472,19 @@ export default function App() {
           }}
           onHoverPass={setActivePass}
         />
+        {predictions.passes.length > 0 && (
+          <PassCarousel
+            state={state}
+            satellites={catalog.satellites}
+            passes={predictions.passes}
+            time={time}
+            active={activePass ?? selectedPass}
+            select={select}
+            hover={setActivePass}
+            choosePass={choosePass}
+            findInSky={(satellite, pass) => setFinderTarget({ satellite, pass })}
+          />
+        )}
         <CatalogNotice catalog={catalog} onRetry={catalog.refresh} timeFormat={state.timeFormat} />
         {selected && detailsOpen && (
           <div className="right-stack">
