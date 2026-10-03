@@ -13,11 +13,15 @@ export function SatelliteSelection({
   value,
   tracked,
   onApply,
+  browseOnly = false,
+  triggerLabel = 'Satellite selection',
 }: {
   satellites: Satellite[];
   value: string[];
   tracked: string[];
   onApply: (ids: string[]) => void;
+  browseOnly?: boolean;
+  triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<string[]>([]);
@@ -74,12 +78,16 @@ export function SatelliteSelection({
     );
   };
   const appliedIds = [...new Set(value)];
-  const summary = appliedIds.length
-    ? `${appliedIds.length} selected · ${appliedIds
-        .slice(0, 2)
-        .map((id) => byNorad.get(id)?.name ?? `NORAD ${id}`)
-        .join(', ')}${appliedIds.length > 2 ? '…' : ''}`
-    : 'Choose satellites';
+  const summary = browseOnly
+    ? appliedIds.length
+      ? (byNorad.get(appliedIds[0])?.name ?? `NORAD ${appliedIds[0]}`)
+      : 'Satellite name or NORAD ID'
+    : appliedIds.length
+      ? `${appliedIds.length} selected · ${appliedIds
+          .slice(0, 2)
+          .map((id) => byNorad.get(id)?.name ?? `NORAD ${id}`)
+          .join(', ')}${appliedIds.length > 2 ? '…' : ''}`
+      : 'Choose satellites';
   const changeOpen = (next: boolean) => {
     if (next) {
       setDraft([...new Set(value)]);
@@ -109,11 +117,11 @@ export function SatelliteSelection({
         className="satellite-selection-trigger"
         variant="secondary"
         fullWidth
-        aria-label="Satellite selection"
+        aria-label={triggerLabel}
         aria-describedby={summaryId}
       >
         <span className="satellite-selection-trigger-text">
-          <span className="satellite-selection-trigger-label">Satellite selection</span>
+          <span className="satellite-selection-trigger-label">{triggerLabel}</span>
           <span className="satellite-selection-trigger-summary" id={summaryId}>
             {summary}
           </span>
@@ -138,11 +146,21 @@ export function SatelliteSelection({
           placement="center"
           scroll="inside"
         >
-          <Modal.Dialog className="satellite-selection-dialog">
-            <Modal.CloseTrigger aria-label="Close satellite selection" />
+          <Modal.Dialog
+            className={`satellite-selection-dialog ${browseOnly ? 'satellite-search-dialog' : ''}`}
+          >
+            <Modal.CloseTrigger
+              aria-label={browseOnly ? 'Close satellite search' : 'Close satellite selection'}
+            />
             <Modal.Header className="satellite-selection-header">
-              <Modal.Heading>Satellite selection</Modal.Heading>
-              <p>Choose the satellites to include in pass predictions.</p>
+              <Modal.Heading>
+                {browseOnly ? 'Search satellites' : 'Satellite selection'}
+              </Modal.Heading>
+              <p>
+                {browseOnly
+                  ? 'Find a satellite and show it on the map.'
+                  : 'Choose the satellites to include in pass predictions.'}
+              </p>
             </Modal.Header>
             <Modal.Body className="satellite-selection-body">
               <div className="satellite-selection-columns">
@@ -186,48 +204,57 @@ export function SatelliteSelection({
                     }}
                   >
                     <Label>Search satellites</Label>
-                    <Input ref={searchInput} placeholder="Name or NORAD ID" />
+                    <Input
+                      ref={searchInput}
+                      autoFocus={browseOnly}
+                      placeholder={browseOnly ? 'Satellite name or NORAD ID' : 'Name or NORAD ID'}
+                    />
                   </TextField>
-                  <div className="satellite-selection-bulk-actions" aria-label="Category selection">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      isDisabled={
-                        !categoryIds.length || selectedCategoryCount === categoryIds.length
-                      }
-                      onPress={() => selectCategory(true)}
+                  {!browseOnly && (
+                    <div
+                      className="satellite-selection-bulk-actions"
+                      aria-label="Category selection"
                     >
-                      Select all
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      isDisabled={!selectedCategoryCount}
-                      onPress={() => selectCategory(false)}
-                    >
-                      Deselect all
-                    </Button>
-                    <span className="satellite-selection-count">
-                      {selectedCategoryCount}/{categoryIds.length} in category
-                    </span>
-                  </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        isDisabled={
+                          !categoryIds.length || selectedCategoryCount === categoryIds.length
+                        }
+                        onPress={() => selectCategory(true)}
+                      >
+                        Select all
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        isDisabled={!selectedCategoryCount}
+                        onPress={() => selectCategory(false)}
+                      >
+                        Deselect all
+                      </Button>
+                      <span className="satellite-selection-count">
+                        {selectedCategoryCount}/{categoryIds.length} in category
+                      </span>
+                    </div>
+                  )}
                   <p className="satellite-selection-results" role="status">
                     {filtered.length} {filtered.length === 1 ? 'satellite' : 'satellites'}
                   </p>
                   <div className="satellite-selection-list">
-                    {filtered.slice(0, limit).map((satellite) => (
-                      <Checkbox
-                        key={satellite.noradId}
-                        className="satellite-selection-checkbox"
-                        aria-label={`${satellite.name} (${satellite.noradId})`}
-                        isSelected={selected.has(satellite.noradId)}
-                        onChange={(checked) => toggleSatellite(satellite.noradId, checked)}
-                      >
-                        <Checkbox.Content>
-                          <Checkbox.Control>
-                            <Checkbox.Indicator />
-                          </Checkbox.Control>
-                          <Label className="satellite-selection-row-text">
+                    {filtered.slice(0, limit).map((satellite) =>
+                      browseOnly ? (
+                        <Button
+                          key={satellite.noradId}
+                          variant="ghost"
+                          className="satellite-search-row"
+                          aria-label={`Show ${satellite.name} (${satellite.noradId}) on map`}
+                          onPress={() => {
+                            onApply([satellite.noradId]);
+                            changeOpen(false);
+                          }}
+                        >
+                          <span className="satellite-selection-row-text">
                             <span className="satellite-selection-name">{satellite.name}</span>
                             {satelliteAliases(satellite).length > 0 && (
                               <span className="satellite-aliases">
@@ -237,10 +264,46 @@ export function SatelliteSelection({
                             <span className="satellite-selection-meta">
                               NORAD {satellite.noradId}
                             </span>
-                          </Label>
-                        </Checkbox.Content>
-                      </Checkbox>
-                    ))}
+                          </span>
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            aria-hidden="true"
+                          >
+                            <path d="m9 6 6 6-6 6" />
+                          </svg>
+                        </Button>
+                      ) : (
+                        <Checkbox
+                          key={satellite.noradId}
+                          className="satellite-selection-checkbox"
+                          aria-label={`${satellite.name} (${satellite.noradId})`}
+                          isSelected={selected.has(satellite.noradId)}
+                          onChange={(checked) => toggleSatellite(satellite.noradId, checked)}
+                        >
+                          <Checkbox.Content>
+                            <Checkbox.Control>
+                              <Checkbox.Indicator />
+                            </Checkbox.Control>
+                            <Label className="satellite-selection-row-text">
+                              <span className="satellite-selection-name">{satellite.name}</span>
+                              {satelliteAliases(satellite).length > 0 && (
+                                <span className="satellite-aliases">
+                                  Also known as: {satelliteAliases(satellite).join(' · ')}
+                                </span>
+                              )}
+                              <span className="satellite-selection-meta">
+                                NORAD {satellite.noradId}
+                              </span>
+                            </Label>
+                          </Checkbox.Content>
+                        </Checkbox>
+                      ),
+                    )}
                     {!filtered.length && (
                       <p className="satellite-selection-empty">
                         {!available.length
@@ -262,90 +325,112 @@ export function SatelliteSelection({
                     )}
                   </div>
                 </section>
-                <section className="satellite-selection-selected" aria-label="Selected satellites">
-                  <div className="satellite-selection-heading-row">
-                    <h3 className="satellite-selection-column-heading">
-                      Selected <span className="satellite-selection-count">{draft.length}</span>
-                    </h3>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      isDisabled={!draft.length}
-                      onPress={clearSelected}
-                    >
-                      Clear list
-                    </Button>
-                  </div>
-                  <ul className="satellite-selection-selected-list">
-                    {draft.map((id) => {
-                      const satellite = byNorad.get(id);
-                      const name = satellite?.name ?? `NORAD ${id}`;
-                      return (
-                        <li key={id} className="satellite-selection-selected-row">
-                          <div className="satellite-selection-row-text">
-                            <span className="satellite-selection-name">{name}</span>
-                            {satellite && satelliteAliases(satellite).length > 0 && (
-                              <span className="satellite-aliases">
-                                Also known as: {satelliteAliases(satellite).join(' · ')}
+                {!browseOnly && (
+                  <section
+                    className="satellite-selection-selected"
+                    aria-label="Selected satellites"
+                  >
+                    <div className="satellite-selection-heading-row">
+                      <h3 className="satellite-selection-column-heading">
+                        Selected <span className="satellite-selection-count">{draft.length}</span>
+                      </h3>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        isDisabled={!draft.length}
+                        onPress={clearSelected}
+                      >
+                        Clear list
+                      </Button>
+                    </div>
+                    <ul className="satellite-selection-selected-list">
+                      {draft.map((id) => {
+                        const satellite = byNorad.get(id);
+                        const name = satellite?.name ?? `NORAD ${id}`;
+                        return (
+                          <li key={id} className="satellite-selection-selected-row">
+                            <div className="satellite-selection-row-text">
+                              <span className="satellite-selection-name">{name}</span>
+                              {satellite && satelliteAliases(satellite).length > 0 && (
+                                <span className="satellite-aliases">
+                                  Also known as: {satelliteAliases(satellite).join(' · ')}
+                                </span>
+                              )}
+                              <span className="satellite-selection-meta">
+                                {satellite ? `NORAD ${id}` : 'Not in the current catalog'}
                               </span>
-                            )}
-                            <span className="satellite-selection-meta">
-                              {satellite ? `NORAD ${id}` : 'Not in the current catalog'}
-                            </span>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            isIconOnly
-                            aria-label={`Remove ${name}`}
-                            ref={(button) => {
-                              if (button) removeButtons.current.set(id, button);
-                              else removeButtons.current.delete(id);
-                            }}
-                            onPress={() => removeSelected(id)}
-                          >
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.6"
-                              strokeLinecap="round"
-                              aria-hidden="true"
-                              focusable="false"
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              isIconOnly
+                              aria-label={`Remove ${name}`}
+                              ref={(button) => {
+                                if (button) removeButtons.current.set(id, button);
+                                else removeButtons.current.delete(id);
+                              }}
+                              onPress={() => removeSelected(id)}
                             >
-                              <path d="m6 6 12 12M6 18 18 6" />
-                            </svg>
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {!draft.length && (
-                    <p className="satellite-selection-empty">
-                      No satellites selected. Choose satellites from the list.
-                    </p>
-                  )}
-                </section>
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                                strokeLinecap="round"
+                                aria-hidden="true"
+                                focusable="false"
+                              >
+                                <path d="m6 6 12 12M6 18 18 6" />
+                              </svg>
+                            </Button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {!draft.length && (
+                      <p className="satellite-selection-empty">
+                        No satellites selected. Choose satellites from the list.
+                      </p>
+                    )}
+                  </section>
+                )}
               </div>
             </Modal.Body>
-            <Modal.Footer className="satellite-selection-footer">
-              <span className="satellite-selection-footer-count" role="status">
-                {draft.length} selected
-              </span>
-              <Button variant="secondary" onPress={() => changeOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onPress={() => {
-                  onApply([...draft]);
-                  changeOpen(false);
-                }}
-              >
-                Apply
-              </Button>
-            </Modal.Footer>
+            {browseOnly ? (
+              value.length > 0 && (
+                <Modal.Footer className="satellite-selection-footer">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onPress={() => {
+                      onApply([]);
+                      changeOpen(false);
+                    }}
+                  >
+                    Clear search
+                  </Button>
+                </Modal.Footer>
+              )
+            ) : (
+              <Modal.Footer className="satellite-selection-footer">
+                <span className="satellite-selection-footer-count" role="status">
+                  {draft.length} selected
+                </span>
+                <Button variant="secondary" onPress={() => changeOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onPress={() => {
+                    onApply([...draft]);
+                    changeOpen(false);
+                  }}
+                >
+                  Apply
+                </Button>
+              </Modal.Footer>
+            )}
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>

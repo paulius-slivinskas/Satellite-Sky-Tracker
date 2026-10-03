@@ -106,16 +106,23 @@ test('map picker stays above zoom controls and clear of the satellite details pa
   const zoomBefore = (await zoom.boundingBox())!;
   expect(before.y + before.height).toBeLessThanOrEqual(zoomBefore.y);
   await openSidebar(page);
-  await page.getByRole('combobox', { name: 'Search' }).fill('25544');
-  await page.getByRole('option', { name: /ISS/ }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Search satellites', exact: true }).fill('25544');
+  await page.getByRole('button', { name: /Show ISS/ }).click();
   const panel = page.getByRole('complementary', { name: 'ISS satellite details' });
   await expect(panel).toBeVisible();
+  const viewport = page.viewportSize()!;
+  const panelBounds = (await panel.boundingBox())!;
+  if (viewport.width <= 1100) {
+    await expect(picker).toBeHidden();
+    await expect(zoom).toBeHidden();
+    await page.getByRole('button', { name: 'Close satellite details', exact: true }).click();
+    await expect(panel).toHaveCount(0);
+  }
   await expect(picker).toBeVisible();
   await expect(zoom).toBeVisible();
   const bounds = (await picker.boundingBox())!;
   const zoomBounds = (await zoom.boundingBox())!;
-  const panelBounds = (await panel.boundingBox())!;
-  const viewport = page.viewportSize()!;
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
   expect(bounds.y).toBeGreaterThanOrEqual(0);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(zoomBounds.y);
@@ -125,7 +132,7 @@ test('map picker stays above zoom controls and clear of the satellite details pa
   const overlapHeight =
     Math.min(bounds.y + bounds.height, panelBounds.y + panelBounds.height) -
     Math.max(bounds.y, panelBounds.y);
-  expect(overlapWidth <= 0 || overlapHeight <= 0).toBe(true);
+  if (viewport.width > 1100) expect(overlapWidth <= 0 || overlapHeight <= 0).toBe(true);
   expect(
     await picker.evaluate((element) => {
       const box = element.getBoundingClientRect();

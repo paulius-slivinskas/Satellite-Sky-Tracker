@@ -11,8 +11,9 @@ async function setup(page: Page) {
 async function selectIss(page: Page) {
   await openSidebar(page);
   await expect(page.locator('.sidebar-stack')).toHaveCSS('transform', 'none');
-  await page.getByRole('combobox', { name: 'Search' }).fill('25544');
-  await page.getByRole('option', { name: /ISS/ }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Search satellites', exact: true }).fill('25544');
+  await page.getByRole('button', { name: /Show ISS/ }).click();
   await expect(page.getByRole('complementary', { name: 'ISS satellite details' })).toBeVisible();
 }
 

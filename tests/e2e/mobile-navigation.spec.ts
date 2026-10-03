@@ -35,8 +35,8 @@ test('mobile navigation opens bottom sheets and keeps map controls outside them'
     const titleBox = (await title.boundingBox())!;
     expect(titleBox.x + titleBox.width / 2).toBeCloseTo(viewport.width / 2, 0);
     if (name === 'Filters') {
-      const search = page.getByRole('combobox', { name: 'Search', exact: true });
-      await expect(search).toHaveAttribute('placeholder', 'Satellite name or NORAD ID');
+      const search = page.getByRole('button', { name: 'Search', exact: true });
+      await expect(search).toContainText('Satellite name or NORAD ID');
       const field = (await search.boundingBox())!;
       expect(field.y).toBeGreaterThan(close.y + close.height);
       await expect(page.getByText('Search', { exact: true })).toBeVisible();

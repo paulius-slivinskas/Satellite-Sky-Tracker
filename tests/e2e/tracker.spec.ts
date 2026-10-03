@@ -35,11 +35,13 @@ test('search selects satellite, renders normalized radio and keeps tracking afte
   await prepare(page);
   await page.goto('/');
   await openSidebar(page);
-  const search = page.getByRole('combobox', { name: 'Search' });
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const search = page.getByRole('textbox', { name: 'Search satellites', exact: true });
   await search.fill('25544');
-  await page.getByRole('option', { name: /ISS/ }).click();
+  await page.getByRole('button', { name: /Show ISS/ }).click();
   const info = page.getByRole('complementary', { name: 'ISS satellite details' });
   await expect(info).toBeVisible();
+  await info.getByRole('tab', { name: 'Amateur radio', exact: true }).click();
   await info.getByRole('button', { name: /FM Voice/ }).click();
   await expect(info.getByText('437.800 MHz')).toBeVisible();
   await info.getByRole('button', { name: 'Add to Tracked' }).click();

@@ -316,6 +316,7 @@ export default function App() {
                       satellites={catalog.satellites}
                       value={state.searchNorad}
                       label="Search"
+                      tracked={state.tracked}
                       onSelect={searchSelect}
                     />
                   </div>

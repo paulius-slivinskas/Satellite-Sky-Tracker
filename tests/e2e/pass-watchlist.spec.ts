@@ -239,8 +239,9 @@ test('restoring a different map selection preserves the explicit multi-satellite
   await openSidebar(page);
   await expect(page.locator('.pass-item')).toHaveCount(5, { timeout: 20000 });
   await page.getByRole('tab', { name: 'Filters', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Search' }).fill('33591');
-  await page.getByRole('option', { name: /NOAA 19/ }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Search satellites', exact: true }).fill('33591');
+  await page.getByRole('button', { name: /Show NOAA 19/ }).click();
   await expect
     .poll(() =>
       page.evaluate(() => JSON.parse(localStorage.getItem('satapp_view_v2') || '{}').selectedNorad),

@@ -1,6 +1,6 @@
 import { test, expect, prepare, openSidebar, LINE1, LINE2 } from './fixtures';
 
-test('aliases are searchable and visible in Smart Search, details and pass selection', async ({
+test('aliases are searchable and visible in search modal, details and pass selection', async ({
   page,
 }, testInfo) => {
   await prepare(page);
@@ -27,15 +27,16 @@ test('aliases are searchable and visible in Smart Search, details and pass selec
   });
   await page.goto('/');
   await openSidebar(page);
-  const search = page.getByRole('combobox', { name: 'Search' });
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const search = page.getByRole('textbox', { name: 'Search satellites', exact: true });
   for (const [id, name, query] of entries) {
     await search.fill(query);
-    const option = page.getByRole('option').filter({ hasText: name });
+    const option = page.locator('.satellite-search-row').filter({ hasText: name });
     await expect(option).toHaveCount(1);
-    await expect(option).toContainText(`#${id}`);
+    await expect(option).toContainText(`NORAD ${id}`);
   }
   await search.fill('AO-91');
-  const ao91 = page.getByRole('option').filter({ hasText: 'RADFXSAT (FOX-1B)' });
+  const ao91 = page.locator('.satellite-search-row').filter({ hasText: 'RADFXSAT (FOX-1B)' });
   await expect(ao91).toContainText('Also known as: AO-91');
   await page.screenshot({ path: testInfo.outputPath('alias-search.png') });
   await ao91.click();

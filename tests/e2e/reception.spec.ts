@@ -22,9 +22,10 @@ test('reception survives reload, uses real time and saves an exportable report',
     `/?view=${encoded({ version: 2, observer: { lat: 54.7, lon: 25.3, alt: 120, name: 'Vilnius' } })}`,
   );
   await openSidebar(page);
-  const search = page.getByRole('combobox', { name: 'Search' });
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const search = page.getByRole('textbox', { name: 'Search satellites', exact: true });
   await search.fill('ISS');
-  await page.getByRole('option', { name: /ISS.*#25544/ }).click();
+  await page.getByRole('button', { name: /Show ISS.*25544/ }).click();
   await page.getByRole('tab', { name: 'Signal report', exact: true }).click();
   await page.getByRole('button', { name: 'Start reception', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Receiving ISS' })).toContainText(
