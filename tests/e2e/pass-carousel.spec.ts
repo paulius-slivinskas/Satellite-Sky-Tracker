@@ -19,6 +19,9 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
   await expect(carousel).toBeVisible();
   await expect.poll(async () => (await cards.first().boundingBox())!.x).toBeCloseTo(12, 0);
   await expect(cards.first()).toHaveCSS('border-radius', '24px');
+  await expect(cards.first()).toHaveCSS('backdrop-filter', 'blur(16px)');
+  await expect(cards.first()).toHaveCSS('opacity', '1');
+  await expect(cards.first()).toHaveCSS('background-color', /\/\s*0\.2\)/);
   await expect(cards.first()).toHaveCSS('cursor', 'default');
   await expect(carousel).toHaveCSS('padding-bottom', '24px');
   const info = cards.first().getByRole('button', { name: 'Sat info', exact: true });
