@@ -17,6 +17,7 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
   )
     await page.getByRole('button', { name: 'Close sidebar', exact: true }).click();
   await expect(carousel).toBeVisible();
+  await expect.poll(async () => (await cards.first().boundingBox())!.x).toBeCloseTo(12, 0);
   await expect(cards.first()).toHaveCSS('border-radius', '24px');
   await expect(cards.first()).toHaveCSS('cursor', 'default');
   await expect(carousel).toHaveCSS('padding-bottom', '24px');
@@ -78,6 +79,12 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
     el.scrollLeft = el.scrollWidth;
   });
   await expect.poll(() => carousel.evaluate((el) => el.scrollLeft)).toBeGreaterThan(100);
+  await expect
+    .poll(async () => {
+      const last = (await cards.last().boundingBox())!;
+      return page.viewportSize()!.width - last.x - last.width;
+    })
+    .toBeCloseTo(12, 0);
   await page.screenshot({ path: `/tmp/pass-carousel-map-${testInfo.project.name}.png` });
   await cards.last().getByRole('button', { name: 'Info', exact: true }).click();
   await expect(page.locator('.sat-info-panel')).toBeVisible();
