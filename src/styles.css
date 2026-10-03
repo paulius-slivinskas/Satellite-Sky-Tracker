@@ -1461,8 +1461,8 @@ h3 {
     justify-content: center;
     flex-shrink: 0;
     align-self: center;
-    width: 64px;
-    height: 24px;
+    width: 96px;
+    height: 32px;
     padding: 0;
     border: 0;
     background: transparent;
@@ -1739,6 +1739,15 @@ h3 {
     top: 0;
     height: 100dvh;
     max-height: 100dvh;
+  }
+  .sidebar-stack.sheet-dragging,
+  .right-stack.sheet-dragging {
+    top: var(--sheet-drag-top);
+    height: calc(100dvh - var(--sheet-drag-top));
+    max-height: none;
+    transition: none;
+    will-change: top, height;
+    user-select: none;
   }
   .app:not(.sidebar-collapsed) .sidebar-stack .sidebar-close {
     position: absolute;

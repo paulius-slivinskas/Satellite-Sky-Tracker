@@ -63,3 +63,34 @@ test('mobile settings use half the screen and other sheets fit their content', a
   await expect.poll(async () => (await sheet.boundingBox())!.height).toBeCloseTo(height / 2, 0);
   await page.screenshot({ path: '/tmp/mobile-settings-half-sheet.png' });
 });
+
+test('mobile sheet follows the drag before release and settles in both directions', async ({
+  page,
+}, info) => {
+  test.skip(!info.project.use.hasTouch);
+  await prepare(page);
+  await page.goto(`/?view=${encoded(shared)}`);
+  await openSidebar(page);
+  const sheet = page.locator('.sidebar-stack');
+  const handle = page.getByRole('button', { name: 'Expand sheet', exact: true });
+  const start = (await sheet.boundingBox())!;
+  const grip = (await handle.boundingBox())!;
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 - 90, { steps: 8 });
+  expect((await sheet.boundingBox())!.y).toBeCloseTo(start.y - 90, 0);
+  await page.mouse.move(grip.x + grip.width / 2, 30, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(async () => (await sheet.boundingBox())!.y).toBeCloseTo(0, 0);
+  const expandedGrip = (await page
+    .getByRole('button', { name: 'Collapse sheet', exact: true })
+    .boundingBox())!;
+  await page.mouse.move(
+    expandedGrip.x + expandedGrip.width / 2,
+    expandedGrip.y + expandedGrip.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(expandedGrip.x + expandedGrip.width / 2, start.y + 30, { steps: 10 });
+  await page.mouse.up();
+  await expect.poll(async () => (await sheet.boundingBox())!.y).toBeCloseTo(start.y, 0);
+});
