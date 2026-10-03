@@ -8,6 +8,11 @@ test('mobile navigation opens bottom sheets and keeps map controls outside them'
   await page.goto('/');
   const nav = page.getByRole('tablist', { name: 'Mobile tracking sections' });
   await expect(nav).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Zoom in', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeHidden();
+  const arrow = await page.locator('.heading-control').boundingBox();
+  expect(arrow!.y).toBeCloseTo(12, 0);
   const viewport = page.viewportSize()!;
   const bounds = (await nav.boundingBox())!;
   expect(bounds.y + bounds.height).toBeCloseTo(viewport.height - 12, 0);

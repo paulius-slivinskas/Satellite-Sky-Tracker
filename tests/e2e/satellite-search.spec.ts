@@ -20,6 +20,35 @@ test('search modal browses categories without selection controls and opens a sat
   await expect(input).toHaveAttribute('placeholder', 'Satellite name or NORAD ID');
   await expect(input).toBeFocused();
   if (testInfo.project.use.hasTouch) await expect(input).toHaveCSS('font-size', '16px');
+  const strip = dialog.getByRole('group', { name: 'Satellite categories' });
+  const stripBox = (await strip.boundingBox())!;
+  if (!testInfo.project.use.hasTouch) {
+    await page.mouse.move(stripBox.x + stripBox.width - 20, stripBox.y + stripBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(stripBox.x + 40, stripBox.y + stripBox.height / 2, { steps: 10 });
+    await page.mouse.up();
+    expect(await strip.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    await expect(
+      dialog.getByRole('button', { name: 'All satellites', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  } else {
+    const touch = await page.context().newCDPSession(page);
+    const y = stripBox.y + stripBox.height / 2;
+    const x = stripBox.x + stripBox.width - 20;
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let step = 1; step <= 8; step++)
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: x - step * 20, y }],
+      });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await expect.poll(() => strip.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    await touch.detach();
+  }
+  await strip.evaluate((el) => {
+    el.scrollLeft = 0;
+  });
+
   await dialog.getByRole('button', { name: 'Amateur Radio', exact: true }).click();
   await input.fill('ISS');
   await expect(dialog.locator('.satellite-search-row')).toHaveCount(0);

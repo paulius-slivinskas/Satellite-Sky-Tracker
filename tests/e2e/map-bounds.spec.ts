@@ -27,11 +27,15 @@ test('zoom out and vertical drags keep the world covering the viewport, includin
   await page.goto(
     `/?view=${encoded({ version: 2, playing: false, categories: [], map: { lat: 80, lon: 25, zoom: 0 } })}`,
   );
-  await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeAttached();
+  await expect(
+    page.getByRole('button', { name: 'Zoom out', exact: true, includeHidden: true }),
+  ).toBeAttached();
   const close = page.getByRole('button', { name: 'Close sidebar', exact: true });
   if (await close.isVisible()) await close.click();
   await assertCovered(page);
-  await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Zoom out', exact: true, includeHidden: true }),
+  ).toBeDisabled();
   for (const direction of [-1, 1]) {
     const box = (await page.locator('#map').boundingBox())!;
     const x = box.x + box.width * 0.55,
@@ -45,9 +49,13 @@ test('zoom out and vertical drags keep the world covering the viewport, includin
   await page.setViewportSize({ width: 900, height: 1300 });
   if (await close.isVisible()) await close.click();
   await assertCovered(page);
-  await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Zoom out', exact: true, includeHidden: true }),
+  ).toBeDisabled();
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Zoom out', exact: true })).toBeEnabled();
+  await expect(
+    page.getByRole('button', { name: 'Zoom out', exact: true, includeHidden: true }),
+  ).toBeEnabled();
   await assertCovered(page);
   expect(errors).toEqual([]);
 });

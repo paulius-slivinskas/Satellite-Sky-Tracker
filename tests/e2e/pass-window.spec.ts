@@ -50,8 +50,8 @@ test('selecting a pass keeps its highlight and opens the mobile map without them
   if (mobile) await card.locator('.pass-header').tap();
   else await card.locator('.pass-header').click();
   if (mobile) {
-    await expect(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeVisible();
-    await expect(page.locator('.theme-control')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open sidebar', exact: true })).toBeHidden();
+    await expect(page.locator('.theme-control')).toHaveCount(0);
     await openSidebar(page);
   }
   await expect(card).toHaveAttribute('aria-pressed', 'true');

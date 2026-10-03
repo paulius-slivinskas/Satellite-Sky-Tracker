@@ -1,5 +1,5 @@
 import { Button, Checkbox, Input, Label, Modal, Tabs, TextField } from '@heroui/react';
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FILTER_CONFIG, isAmateurSelectedName } from '../domain/config';
 import type { Satellite } from '../domain/types';
 import { searchSatellites } from '../domain/search';
@@ -30,6 +30,66 @@ export function SatelliteSelection({
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
   const summaryId = useId();
+  const categoryStrip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const strip = categoryStrip.current;
+    if (!open || !strip) return;
+    let drag: { x: number; scroll: number; pointer: number; moved: boolean } | null = null;
+    let suppressClick = false;
+    const down = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse' || event.button !== 0) return;
+      suppressClick = false;
+      drag = { x: event.clientX, scroll: strip.scrollLeft, pointer: event.pointerId, moved: false };
+    };
+    const move = (event: PointerEvent) => {
+      if (!drag || drag.pointer !== event.pointerId) return;
+      const distance = event.clientX - drag.x;
+      if (!drag.moved && Math.abs(distance) < 6) return;
+      if (!drag.moved) strip.setPointerCapture(event.pointerId);
+      drag.moved = true;
+      event.preventDefault();
+      strip.scrollLeft = drag.scroll - distance;
+    };
+    const up = (event: PointerEvent) => {
+      if (!drag || drag.pointer !== event.pointerId) return;
+      suppressClick = drag.moved;
+      if (drag.moved) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (strip.hasPointerCapture(event.pointerId)) strip.releasePointerCapture(event.pointerId);
+      drag = null;
+    };
+    const click = (event: MouseEvent) => {
+      if (!suppressClick) return;
+      suppressClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const wheel = (event: WheelEvent) => {
+      if (
+        Math.abs(event.deltaX) >= Math.abs(event.deltaY) ||
+        strip.scrollWidth <= strip.clientWidth
+      )
+        return;
+      event.preventDefault();
+      strip.scrollLeft += event.deltaY;
+    };
+    strip.addEventListener('pointerdown', down);
+    strip.addEventListener('pointermove', move);
+    strip.addEventListener('pointerup', up, true);
+    strip.addEventListener('pointercancel', up, true);
+    strip.addEventListener('click', click, true);
+    strip.addEventListener('wheel', wheel, { passive: false });
+    return () => {
+      strip.removeEventListener('pointerdown', down);
+      strip.removeEventListener('pointermove', move);
+      strip.removeEventListener('pointerup', up, true);
+      strip.removeEventListener('pointercancel', up, true);
+      strip.removeEventListener('click', click, true);
+      strip.removeEventListener('wheel', wheel);
+    };
+  }, [open]);
   const searchInput = useRef<HTMLInputElement>(null);
   const removeButtons = useRef(new Map<string, HTMLButtonElement>());
   const pendingFocus = useRef<{ id: string | null } | null>(null);
@@ -121,6 +181,7 @@ export function SatelliteSelection({
     <section className="satellite-selection-categories" aria-label="Browse categories">
       <h3 className="satellite-selection-column-heading">Categories</h3>
       <div
+        ref={categoryStrip}
         className="satellite-selection-category-list"
         role="group"
         aria-label="Satellite categories"

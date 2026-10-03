@@ -507,3 +507,13 @@
     display: none;
   }
 }
+
+.satellite-selection-header .satellite-selection-category-list {
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  user-select: none;
+}
+.satellite-selection-header .satellite-selection-category-list::-webkit-scrollbar {
+  display: none;
+}

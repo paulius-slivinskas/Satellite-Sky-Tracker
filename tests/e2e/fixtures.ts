@@ -113,6 +113,12 @@ export async function prepare(page: Page, updatedAt = new Date('2024-02-29T12:30
 export async function openSidebar(page: Page) {
   const button = page.getByRole('button', { name: 'Open sidebar', exact: true });
   if (await button.isVisible()) await button.click();
+  else if (!(await page.locator('.sidebar-stack').isVisible())) {
+    await page
+      .getByRole('tablist', { name: 'Mobile tracking sections' })
+      .getByRole('tab', { selected: true })
+      .click();
+  }
   await expect(page.locator('.sidebar-stack')).toHaveCSS('transform', 'none');
 }
 export function encoded(value: unknown) {
@@ -120,9 +126,7 @@ export function encoded(value: unknown) {
 }
 
 export async function setAppearance(page: Page, mode: 'light' | 'dark') {
-  const wasClosed = await page
-    .getByRole('button', { name: 'Open sidebar', exact: true })
-    .isVisible();
+  const wasClosed = !(await page.locator('.sidebar-stack').isVisible());
   const tab = await page.evaluate(
     () => JSON.parse(localStorage.getItem('satapp_view_v2') || '{}').tab || 'filters',
   );

@@ -1295,6 +1295,7 @@ h3 {
   display: none;
 }
 .sidebar-close {
+  pointer-events: auto;
   width: 40px;
   height: 40px;
   min-width: 40px;
@@ -1722,6 +1723,17 @@ h3 {
   top: 10px;
   right: 11px;
   left: auto;
+}
+@media (max-width: 680px) {
+  .sidebar-toggle:not(.sidebar-close),
+  .map-zoom-controls {
+    display: none;
+  }
+  .app .map-controls {
+    top: max(12px, env(safe-area-inset-top));
+    right: 12px;
+    bottom: auto;
+  }
 }
 @media (max-width: 680px) {
   .sidebar-stack {
