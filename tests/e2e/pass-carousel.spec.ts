@@ -34,6 +34,34 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
     if (nav) expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(nav.y);
     const controls = await page.locator('.map-controls').boundingBox();
     if (controls) expect(controls.y + controls.height).toBeLessThan(bounds!.y);
+    await expect(carousel).toHaveCSS('scroll-snap-type', 'x mandatory');
+    await expect(cards.first().locator('..')).toHaveCSS('scroll-snap-stop', 'always');
+    const touch = await page.context().newCDPSession(page);
+    const y = bounds!.y + 36;
+    const start = page.viewportSize()!.width - 30;
+    const step = (await cards.first().boundingBox())!.width + 12;
+    for (let index = 1; index <= 2; index++) {
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x: start, y }],
+      });
+      for (let move = 1; move <= 5; move++) {
+        await touch.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [{ x: start - ((start - 40) * move) / 5, y }],
+        });
+        await page.waitForTimeout(16);
+      }
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      await expect
+        .poll(() => carousel.evaluate((el) => el.scrollLeft))
+        .toBeCloseTo(step * index, 0);
+      await expect(page.locator('.sat-info-panel')).toHaveCount(0);
+    }
+    await touch.detach();
+    await carousel.evaluate((el) => {
+      el.scrollLeft = 0;
+    });
   } else {
     expect(bounds!.x).toBe(0);
     expect(bounds!.width).toBe(page.viewportSize()!.width);

@@ -88,6 +88,74 @@ export function PassCarousel({
       event.preventDefault();
       event.stopPropagation();
     };
+    let swipe: {
+      x: number;
+      y: number;
+      scroll: number;
+      step: number;
+      index: number;
+      distance: number;
+      moved: boolean;
+    } | null = null;
+    const touchStart = (event: TouchEvent) => {
+      if (
+        event.touches.length !== 1 ||
+        window.innerWidth > 1100 ||
+        (event.target as HTMLElement).closest('.pass-extra-details')
+      )
+        return;
+      const first = element.querySelector<HTMLElement>('.passes-list > li');
+      if (!first) return;
+      const step = first.getBoundingClientRect().width + 12;
+      const point = event.touches[0];
+      suppressClick = false;
+      swipe = {
+        x: point.clientX,
+        y: point.clientY,
+        scroll: element.scrollLeft,
+        step,
+        index: Math.round(element.scrollLeft / step),
+        distance: 0,
+        moved: false,
+      };
+    };
+    const touchMove = (event: TouchEvent) => {
+      if (!swipe || event.touches.length !== 1) return;
+      const point = event.touches[0];
+      const distance = point.clientX - swipe.x;
+      const vertical = point.clientY - swipe.y;
+      if (!swipe.moved) {
+        if (Math.abs(vertical) > Math.abs(distance) && Math.abs(vertical) > 6) {
+          swipe = null;
+          return;
+        }
+        if (Math.abs(distance) < 6) return;
+        swipe.moved = true;
+        element.dataset.swiping = 'true';
+      }
+      event.preventDefault();
+      swipe.distance = distance;
+      element.scrollLeft = swipe.scroll - Math.max(-swipe.step, Math.min(swipe.step, distance));
+    };
+    const touchEnd = () => {
+      if (!swipe) return;
+      const target =
+        swipe.index + (Math.abs(swipe.distance) >= 40 ? (swipe.distance < 0 ? 1 : -1) : 0);
+      suppressClick = swipe.moved;
+      delete element.dataset.swiping;
+      if (swipe.moved)
+        element.scrollTo({
+          left: Math.max(0, target * swipe.step),
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            ? 'instant'
+            : 'smooth',
+        });
+      swipe = null;
+    };
+    element.addEventListener('touchstart', touchStart, { passive: true });
+    element.addEventListener('touchmove', touchMove, { passive: false });
+    element.addEventListener('touchend', touchEnd);
+    element.addEventListener('touchcancel', touchEnd);
     element.addEventListener('wheel', wheel, { passive: false });
     element.addEventListener('pointerdown', down);
     window.addEventListener('pointermove', move, { passive: false });
@@ -96,6 +164,10 @@ export function PassCarousel({
     element.addEventListener('click', click, true);
     return () => {
       observer.disconnect();
+      element.removeEventListener('touchstart', touchStart);
+      element.removeEventListener('touchmove', touchMove);
+      element.removeEventListener('touchend', touchEnd);
+      element.removeEventListener('touchcancel', touchEnd);
       element.removeEventListener('wheel', wheel);
       element.removeEventListener('pointerdown', down);
       window.removeEventListener('pointermove', move);

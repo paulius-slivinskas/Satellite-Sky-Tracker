@@ -1700,3 +1700,61 @@ h3 {
     display: inline-flex;
   }
 }
+
+@media (max-width: 1100px) {
+  .pass-carousel {
+    scroll-snap-type: x mandatory;
+    touch-action: pan-y;
+  }
+  .pass-carousel .passes-list > li {
+    scroll-snap-stop: always;
+  }
+}
+
+.pass-carousel[data-swiping='true'] {
+  scroll-snap-type: none;
+}
+
+.sat-info-head .sat-info-close {
+  top: 10px;
+  right: 11px;
+  left: auto;
+}
+@media (min-width: 1101px) {
+  .sat-info-panel {
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+    scrollbar-gutter: auto;
+  }
+  .sat-info-head {
+    position: relative;
+    min-height: 60px;
+    flex-shrink: 0;
+    padding: 0 64px;
+    justify-content: center;
+  }
+  .sat-info-head h2 {
+    width: 100%;
+    text-align: center;
+    margin: 0;
+    font-size: 18px;
+  }
+  .sat-info-actions {
+    position: absolute;
+    left: 12px;
+    top: 10px;
+  }
+  .sat-info-actions .button {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border-radius: 50%;
+  }
+  .sat-info-content {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 20px 24px;
+  }
+}

@@ -90,14 +90,6 @@ export function SatelliteInfo({
   ];
   return (
     <>
-      <Tooltip>
-        <CloseButton
-          className="sat-info-close"
-          aria-label="Close satellite details"
-          onPress={onClose}
-        />
-        <Tooltip.Content placement="left">Close satellite details</Tooltip.Content>
-      </Tooltip>
       <Card
         className="sat-info-panel"
         role="complementary"
@@ -105,6 +97,14 @@ export function SatelliteInfo({
       >
         <SheetHandle expanded={expanded} onChange={onExpandedChange} />
         <Card.Header className="sat-info-head">
+          <Tooltip>
+            <CloseButton
+              className="sat-info-close"
+              aria-label="Close satellite details"
+              onPress={onClose}
+            />
+            <Tooltip.Content placement="left">Close satellite details</Tooltip.Content>
+          </Tooltip>
           <h2>{sat.name}</h2>
           <div className="sat-info-actions">
             <Tooltip>

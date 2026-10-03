@@ -16,7 +16,7 @@ async function selectIss(page: Page) {
   await expect(page.getByRole('complementary', { name: 'ISS satellite details' })).toBeVisible();
 }
 
-test('satellite and transmitter use HeroUI cards with an exterior, keyboard-operable close button', async ({
+test('satellite and transmitter use HeroUI cards with a header, keyboard-operable close button', async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -42,7 +42,7 @@ test('satellite and transmitter use HeroUI cards with an exterior, keyboard-oper
   await expect(panel.getByRole('button', { name: 'Close', exact: true })).toHaveCount(0);
   const close = page.getByRole('button', { name: 'Close satellite details', exact: true });
   await expect(close).toBeVisible();
-  expect(await close.evaluate((element) => element.closest('.sat-info-panel') === null)).toBe(true);
+  expect(await close.evaluate((element) => element.closest('.sat-info-panel') !== null)).toBe(true);
   const bounds = (await close.boundingBox())!;
   const panelBounds = (await panel.boundingBox())!;
   const viewport = page.viewportSize()!;
@@ -54,7 +54,17 @@ test('satellite and transmitter use HeroUI cards with an exterior, keyboard-oper
     expect(bounds.y).toBeGreaterThan(panelBounds.y);
     expect(bounds.x).toBeGreaterThan(viewport.width / 2);
   } else {
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(panelBounds.x);
+    expect(bounds.x).toBeGreaterThan(panelBounds.x + panelBounds.width / 2);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(panelBounds.x + panelBounds.width);
+    const heading = (await panel.locator('.sat-info-head h2').boundingBox())!;
+    const star = (await panel
+      .getByRole('button', { name: 'Add to Tracked', exact: true })
+      .boundingBox())!;
+    expect(
+      Math.abs(heading.x + heading.width / 2 - panelBounds.x - panelBounds.width / 2),
+    ).toBeLessThan(1);
+    expect(star.x).toBeLessThan(heading.x);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(panelBounds.y + 60);
   }
   expect(
     await close.evaluate((element) => {
@@ -126,6 +136,9 @@ test('pass HeroUI cards retain numerical details and focus/hover selection', asy
   await expect(cards.first()).toContainText('18:22:42');
   await expect(cards.first()).toContainText('18:29:40');
   await expect(cards.first()).toContainText('5.4°');
+  const closeSidebar = page.getByRole('button', { name: 'Close sidebar', exact: true });
+  if (page.viewportSize()!.width <= 1100 && (await closeSidebar.isVisible()))
+    await closeSidebar.click();
   await cards.first().focus();
   await expect(cards.first()).toBeFocused();
   await expect(cards.first()).toHaveClass(/pass-item-hover/);
@@ -138,6 +151,8 @@ test('pass HeroUI cards retain numerical details and focus/hover selection', asy
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await openSidebar(page);
   await expect(cards).toHaveCount(3);
+  if (page.viewportSize()!.width <= 1100 && (await closeSidebar.isVisible()))
+    await closeSidebar.click();
   await cards.first().focus();
   await expect(cards.first()).toHaveClass(/pass-item-hover/);
   expect(errors).toEqual([]);
