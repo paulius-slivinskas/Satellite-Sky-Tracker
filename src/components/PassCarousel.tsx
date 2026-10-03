@@ -9,7 +9,6 @@ export function PassCarousel({
   passes,
   time,
   active,
-  select,
   hover,
   choosePass,
   findInSky,
@@ -19,9 +18,8 @@ export function PassCarousel({
   passes: SatellitePass[];
   time: number;
   active: number | null;
-  select: (norad: string | null) => void;
   hover: (index: number | null) => void;
-  choosePass: (index: number) => void;
+  choosePass: (index: number, showInfo?: boolean) => void;
   findInSky: (satellite: Satellite, pass: SatellitePass) => void;
 }) {
   const [expandedPasses, setExpandedPasses] = useState<Set<string>>(() => new Set());
@@ -270,35 +268,13 @@ export function PassCarousel({
                       <path d={expanded ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'} />
                     </svg>
                   </Button>
-                  <Button size="md" variant="ghost" onPress={() => select(pass.noradId)}>
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                      className="pass-info-icon"
-                    >
-                      <path d="M13 7 9 3 3 9l4 4m10-2 4 4-6 6-4-4m-3-5 4-4 4 4-4 4Zm8-4 3-3M9 21a6 6 0 0 0-6-6" />
-                    </svg>
-                    Info
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="m9 6 6 6-6 6" />
-                    </svg>
+                  <Button
+                    size="md"
+                    variant="ghost"
+                    className="pass-info"
+                    onPress={() => choosePass(i, true)}
+                  >
+                    Sat info
                   </Button>
                 </Card.Footer>
               </Card>

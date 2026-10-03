@@ -50,22 +50,21 @@ test('minimum elevation replaces its label with an input and filters qualifying 
   expect(nav.x).toBeGreaterThan(el.x);
   expect(nav.y).toBeLessThan(el.y + el.height);
   const more = card.getByRole('button', { name: 'Less', exact: true });
-  const satellite = card.getByRole('button', { name: 'Info', exact: true });
+  const satellite = card.locator('.pass-info');
   await expect(more).toHaveClass(/button--ghost/);
   await expect(satellite).toHaveClass(/button--ghost/);
   await expect(more).toHaveAttribute('aria-expanded', 'true');
   await expect(card.locator('.pass-date')).toHaveCount(0);
   const left = (await more.boundingBox())!;
-  const right = (await satellite.boundingBox())!;
-  expect(left.x + left.width).toBeLessThan(right.x);
-  expect(Math.abs(left.y - right.y)).toBeLessThan(2);
   const chevron = (await more.locator('svg').boundingBox())!;
   expect(left.x + left.width - chevron.x - chevron.width).toBeLessThan(12);
   expect(Math.abs(left.y + left.height / 2 - chevron.y - chevron.height / 2)).toBeLessThan(2);
-  await expect(satellite.locator('svg').last().locator('path')).toHaveAttribute(
-    'd',
-    'm9 6 6 6-6 6',
-  );
+  if (testInfo.project.use.hasTouch) {
+    const right = (await satellite.boundingBox())!;
+    expect(left.x + left.width).toBeLessThan(right.x);
+    expect(Math.abs(left.y - right.y)).toBeLessThan(2);
+    await expect(satellite.locator('svg')).toHaveCount(0);
+  } else await expect(satellite).toBeHidden();
   await card.scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath('pass-minimum-elevation.png') });
   await expect

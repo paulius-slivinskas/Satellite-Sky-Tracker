@@ -21,9 +21,11 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
   await expect(cards.first()).toHaveCSS('border-radius', '24px');
   await expect(cards.first()).toHaveCSS('cursor', 'default');
   await expect(carousel).toHaveCSS('padding-bottom', '24px');
-  await expect(
-    cards.first().getByRole('button', { name: 'Info', exact: true }).locator('.pass-info-icon'),
-  ).toBeVisible();
+  const info = cards.first().getByRole('button', { name: 'Sat info', exact: true });
+  if (mobile) {
+    await expect(info).toBeVisible();
+    await expect(info.locator('svg')).toHaveCount(0);
+  } else await expect(info).toBeHidden();
   await expect(page.locator('.sidebar .pass-item')).toHaveCount(0);
   const bounds = await carousel.boundingBox();
   expect(bounds).not.toBeNull();
@@ -68,6 +70,13 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
   await cards.first().getByRole('button', { name: 'Less', exact: true }).click();
   await cards.first().locator('.pass-header').click();
   await expect(page.locator('#map')).toHaveAttribute('data-active-pass', '0');
+  if (mobile) {
+    await expect(page.locator('.sat-info-panel')).toHaveCount(0);
+    await expect(carousel).toBeVisible();
+    await info.click();
+    await expect(page.locator('.sat-info-panel')).toBeVisible();
+    await expect(page.locator('#map')).toHaveAttribute('data-active-pass', '0');
+  }
   await page.getByRole('button', { name: 'Close satellite details', exact: true }).click();
   if (!mobile) {
     await cards.nth(1).hover();
@@ -86,7 +95,8 @@ test('map carousel scrolls, keeps actions, and highlights hovered passes over a 
     })
     .toBeCloseTo(12, 0);
   await page.screenshot({ path: `/tmp/pass-carousel-map-${testInfo.project.name}.png` });
-  await cards.last().getByRole('button', { name: 'Info', exact: true }).click();
+  if (mobile) await cards.last().getByRole('button', { name: 'Sat info', exact: true }).click();
+  else await cards.last().locator('.pass-header').click();
   await expect(page.locator('.sat-info-panel')).toBeVisible();
   await page.screenshot({ path: `/tmp/pass-carousel-${testInfo.project.name}.png` });
 });

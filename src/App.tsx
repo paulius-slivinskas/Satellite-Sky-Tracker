@@ -63,11 +63,11 @@ export default function App() {
     (pass) => `${pass.noradId}-${pass.start}` === selectedPassKey,
   );
   const selectedPass = selectedPassIndex >= 0 ? selectedPassIndex : null;
-  const choosePass = (index: number) => {
+  const choosePass = (index: number, showInfo = true) => {
     const pass = predictions.passes[index];
     if (!pass) return;
     setSelectedPassKey(`${pass.noradId}-${pass.start}`);
-    setDetailsOpen(true);
+    setDetailsOpen(showInfo);
     dispatch({ type: 'select', norad: pass.noradId });
     patch({ showPassesOnMap: true });
     if (window.innerWidth <= 1100) setCollapsed(true);
@@ -479,9 +479,10 @@ export default function App() {
             passes={predictions.passes}
             time={time}
             active={activePass ?? selectedPass}
-            select={select}
             hover={setActivePass}
-            choosePass={choosePass}
+            choosePass={(index, showInfo = false) =>
+              choosePass(index, showInfo || window.innerWidth > 1100)
+            }
             findInSky={(satellite, pass) => setFinderTarget({ satellite, pass })}
           />
         )}

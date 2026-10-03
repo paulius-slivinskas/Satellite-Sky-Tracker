@@ -1691,3 +1691,12 @@ h3 {
     bottom: calc(var(--pass-carousel-height, 180px) + 24px);
   }
 }
+
+.pass-info {
+  display: none;
+}
+@media (max-width: 1100px) {
+  .pass-info {
+    display: inline-flex;
+  }
+}
