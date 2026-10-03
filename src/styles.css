@@ -1724,6 +1724,9 @@ h3 {
   left: auto;
 }
 @media (min-width: 1101px) {
+  .right-stack {
+    top: var(--overlay-gap);
+  }
   .sat-info-panel {
     padding: 0;
     gap: 0;
