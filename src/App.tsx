@@ -415,14 +415,10 @@ export default function App() {
               <Tabs.Panel id="settings">
                 <div className="panel-content">
                   <h2>Settings</h2>
-                  <Choice
-                    label="Appearance"
-                    value={theme}
-                    options={[
-                      ['light', 'Light mode'],
-                      ['dark', 'Dark mode'],
-                    ]}
-                    onChange={(value) => setTheme(value as typeof theme)}
+                  <Toggle
+                    label="Dark mode"
+                    selected={theme === 'dark'}
+                    onChange={(enabled) => setTheme(enabled ? 'dark' : 'light')}
                   />
                   <Choice
                     label="Map layer"
@@ -430,14 +426,10 @@ export default function App() {
                     options={MAP_LAYERS.map((layer) => [layer.id, layer.name])}
                     onChange={(value) => setMapLayer(value as MapLayer)}
                   />
-                  <Choice
-                    label="Time format"
-                    value={state.timeFormat}
-                    options={[
-                      ['24h', '24-hour'],
-                      ['12h', '12-hour'],
-                    ]}
-                    onChange={(value) => patch({ timeFormat: value as ViewState['timeFormat'] })}
+                  <Toggle
+                    label="24-hour time"
+                    selected={state.timeFormat === '24h'}
+                    onChange={(enabled) => patch({ timeFormat: enabled ? '24h' : '12h' })}
                   />
                   <Button
                     variant="secondary"

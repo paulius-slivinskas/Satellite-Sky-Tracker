@@ -30,8 +30,11 @@ test('settings layer and appearance changes update the map and persist', async (
       .poll(() => page.evaluate(() => localStorage.getItem('satapp_map_layer')))
       .toBe(layer.toLowerCase());
   }
-  await page.getByRole('button', { name: /Appearance/ }).click();
-  await page.getByRole('option', { name: 'Light mode', exact: true }).click();
+  await page.getByText('Dark mode', { exact: true }).click();
+  await page.getByText('24-hour time', { exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('satapp_view_v2')!).timeFormat))
+    .toBe('12h');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   expect(
     await page.evaluate(() => JSON.parse(localStorage.getItem('satapp_view_v2')!).map),
@@ -39,6 +42,12 @@ test('settings layer and appearance changes update the map and persist', async (
   await page.reload();
   await openSidebar(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.getByRole('switch', { name: 'Dark mode', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('switch', { name: '24-hour time', exact: true })).not.toBeChecked();
+  await page.getByText('24-hour time', { exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('satapp_view_v2')!).timeFormat))
+    .toBe('24h');
   await expect(page.getByRole('button', { name: /Map layer/ })).toContainText('Satellite');
 });
 test('mobile settings use half the screen and other sheets fit their content', async ({

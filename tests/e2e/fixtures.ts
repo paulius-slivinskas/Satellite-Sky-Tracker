@@ -128,10 +128,11 @@ export async function setAppearance(page: Page, mode: 'light' | 'dark') {
   );
   await openSidebar(page);
   await page.getByRole('tab', { name: 'Settings', exact: true }).last().click();
-  await page.getByRole('button', { name: /Appearance/ }).click();
-  await page
-    .getByRole('option', { name: mode === 'light' ? 'Light mode' : 'Dark mode', exact: true })
-    .click();
+  const toggle = page.getByRole('switch', { name: 'Dark mode', exact: true });
+  if ((await toggle.isChecked()) !== (mode === 'dark')) {
+    await toggle.focus();
+    await toggle.press('Space');
+  }
   await page
     .getByRole('tab', { name: tab[0].toUpperCase() + tab.slice(1), exact: true })
     .last()
