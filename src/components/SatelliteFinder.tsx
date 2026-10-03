@@ -21,7 +21,7 @@ export function SatelliteFinder({
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button className="finder-launch" variant="secondary" onPress={() => setOpen(true)}>
+      <Button size="sm" className="finder-launch" variant="secondary" onPress={() => setOpen(true)}>
         Find in the sky
       </Button>
       {open &&

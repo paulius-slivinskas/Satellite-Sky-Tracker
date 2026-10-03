@@ -128,7 +128,7 @@
   pointer-events: auto;
   flex-shrink: 0;
   margin-top: 8px;
-  min-height: 44px;
+  width: 100%;
 }
 @media (max-height: 700px) {
   .finder-header {

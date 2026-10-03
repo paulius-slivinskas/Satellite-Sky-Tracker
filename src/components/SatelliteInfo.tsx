@@ -156,7 +156,6 @@ export function SatelliteInfo({
               </Tabs.List>
             </Tabs.ListContainer>
             <Tabs.Panel id="details">
-              <SatelliteFinder satellite={sat} observer={observer} />
               {satelliteAliases(sat).length > 0 && (
                 <p className="satellite-aliases">
                   Also known as: {satelliteAliases(sat).join(' · ')}
@@ -183,6 +182,7 @@ export function SatelliteInfo({
                   </div>
                 ))}
               </dl>
+              <SatelliteFinder satellite={sat} observer={observer} />
             </Tabs.Panel>
             <Tabs.Panel id="radio">
               <h3>Amateur Radio</h3>
