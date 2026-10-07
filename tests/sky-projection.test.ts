@@ -56,27 +56,20 @@ it('guides diagonally, handles targets behind the phone and follows screen roll'
   expect(skyGuide(camera, 0, 0).distance).toBeCloseTo(0);
 });
 
-it('keeps iOS sky orientation continuous across the upright position', () => {
-  const bearing = (beta: number, heading: number) => {
-    const camera = orientationCamera({ alpha: 17, beta, gamma: 0, webkitCompassHeading: heading })!;
-    return ((Math.atan2(camera.forward.x, camera.forward.y) * 180) / Math.PI + 360) % 360;
-  };
-  for (const beta of [89, 90, 91, 120]) expect(bearing(beta, 40)).toBeCloseTo(40);
-  expect(bearing(120, 70)).toBeCloseTo(70);
+it('requires calibration instead of replacing relative iOS alpha with a compass heading', () => {
+  expect(orientationCamera({ alpha: 17, beta: 90, gamma: 0, webkitCompassHeading: 40 })).toBeNull();
 });
-it('moves a fixed satellite left when the phone turns right, on iOS and absolute sensors', () => {
-  for (const ios of [false, true]) {
-    const camera = (heading: number) =>
-      orientationCamera({
-        alpha: 360 - heading,
-        beta: 110,
-        gamma: 0,
-        ...(ios ? { webkitCompassHeading: heading } : { absolute: true }),
-      })!;
-    expect(projectSky(camera(30), 30, 20).x).toBeCloseTo(200);
-    expect(projectSky(camera(40), 30, 20).x).toBeLessThan(200);
-    expect(projectSky(camera(20), 30, 20).x).toBeGreaterThan(200);
-  }
+it('moves a fixed satellite left when the phone turns right', () => {
+  const camera = (heading: number) =>
+    orientationCamera({
+      alpha: 360 - heading,
+      beta: 110,
+      gamma: 0,
+      absolute: true,
+    })!;
+  expect(projectSky(camera(30), 30, 20).x).toBeCloseTo(200);
+  expect(projectSky(camera(40), 30, 20).x).toBeLessThan(200);
+  expect(projectSky(camera(20), 30, 20).x).toBeGreaterThan(200);
 });
 
 it('fits portrait and landscape viewports with guidance orbiting the central reticle', () => {

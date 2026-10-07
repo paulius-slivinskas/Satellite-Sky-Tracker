@@ -17,6 +17,11 @@ describe('north-referenced phone orientation', () => {
       orientationAngles({ ...reading, webkitCompassHeading: 45, webkitCompassAccuracy: -1 })
         .heading,
     ).toBeNull();
+    expect(orientationAngles({ ...reading, webkitCompassHeading: -1 }).heading).toBeNull();
+    expect(
+      orientationAngles({ ...reading, webkitCompassHeading: 45, webkitCompassAccuracy: NaN })
+        .heading,
+    ).toBeNull();
   });
   it('uses the viewing direction when the screen top is vertical', () => {
     expect(orientationAngles({ ...reading, beta: 90, absolute: true }).heading).toBeCloseTo(270);

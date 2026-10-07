@@ -188,7 +188,22 @@ function FinderView({
       <div className="finder-body">
         <div className="finder-tracking-controls">
           {sensorActive ? (
-            <p>Hold the screen towards you and point the phone at the sky.</p>
+            <>
+              <p>Hold the screen towards you and point the phone at the sky.</p>
+              {orientation.reference === 'magnetic' && (
+                <Button size="sm" variant="ghost" onPress={orientation.recalibrate}>
+                  Align north
+                </Button>
+              )}
+            </>
+          ) : orientation.calibration ? (
+            <p role="status">
+              {orientation.calibration === 'poor-accuracy'
+                ? 'Compass accuracy is low. Move away from metal, then hold the phone flat.'
+                : orientation.calibration === 'hold-still'
+                  ? 'Hold still for a moment to align north…'
+                  : 'Hold your phone flat, screen up, to align north. Then raise it towards the sky.'}
+            </p>
           ) : (
             <Button
               size="sm"
@@ -216,7 +231,9 @@ function FinderView({
           </div>
         </dl>
         <div className="finder-state">
-          {sensorActive && orientation.accuracy != null && orientation.accuracy > 25 ? (
+          {sensorActive &&
+          orientation.accuracy != null &&
+          (orientation.accuracy < 0 || orientation.accuracy > 25) ? (
             <Chip size="sm" variant="soft">
               <Chip.Label>Low compass accuracy · move away from metal</Chip.Label>
             </Chip>

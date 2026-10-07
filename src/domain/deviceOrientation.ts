@@ -7,17 +7,21 @@ export interface OrientationReading {
   webkitCompassAccuracy?: number;
 }
 export const normalizeHeading = (value: number) => ((value % 360) + 360) % 360;
+export function compassHeading(reading: OrientationReading): number | null {
+  return Number.isFinite(reading.webkitCompassHeading) &&
+    reading.webkitCompassHeading! >= 0 &&
+    (reading.webkitCompassAccuracy === undefined ||
+      (Number.isFinite(reading.webkitCompassAccuracy) && reading.webkitCompassAccuracy >= 0))
+    ? normalizeHeading(reading.webkitCompassHeading!)
+    : null;
+}
 export function orientationAngles(reading: OrientationReading, screenAngle = 0) {
   const { alpha, beta, gamma } = reading;
   const radians = Math.PI / 180;
   let heading: number | null = null;
   let elevation: number | null = null;
-  if (
-    Number.isFinite(reading.webkitCompassHeading) &&
-    (reading.webkitCompassAccuracy === undefined || reading.webkitCompassAccuracy >= 0)
-  ) {
-    heading = normalizeHeading(reading.webkitCompassHeading! - screenAngle);
-  }
+  const compass = compassHeading(reading);
+  if (compass !== null) heading = normalizeHeading(compass - screenAngle);
   if (beta !== null && gamma !== null && Number.isFinite(beta) && Number.isFinite(gamma)) {
     const b = beta * radians,
       g = gamma * radians;
@@ -46,30 +50,35 @@ export function orientationAngles(reading: OrientationReading, screenAngle = 0) 
   return { heading, elevation };
 }
 
-/** W3C intrinsic Z-X-Y rotation; rear-facing -z points at the sky while the screen faces the observer. */
+/** Only absolute Euler readings can directly locate the sky relative to north. */
 export function orientationCamera(
   reading: OrientationReading,
   screenAngle = 0,
 ): import('./skyProjection').SkyCamera | null {
+  return reading.absolute ? relativeOrientationCamera(reading, screenAngle) : null;
+}
+
+/** Complete W3C Z-X-Y attitude, in the sensor's reference frame (not necessarily north). */
+export function relativeOrientationCamera(
+  reading: OrientationReading,
+  screenAngle = 0,
+): import('./skyProjection').SkyCamera | null {
   if (
+    reading.alpha === null ||
+    !Number.isFinite(reading.alpha) ||
     reading.beta === null ||
     reading.gamma === null ||
     !Number.isFinite(reading.beta) ||
     !Number.isFinite(reading.gamma)
   )
     return null;
-  const compass =
-    Number.isFinite(reading.webkitCompassHeading) &&
-    (reading.webkitCompassAccuracy === undefined || reading.webkitCompassAccuracy >= 0);
-  if (!compass && (!reading.absolute || reading.alpha === null || !Number.isFinite(reading.alpha)))
-    return null;
   const r = Math.PI / 180;
   const b = reading.beta * r,
     g = reading.gamma * r,
     s = screenAngle * r;
-  // iOS compass heading is clockwise; intrinsic alpha is counterclockwise.
-  // Never add a pitch-dependent half turn: that flips the view at beta=90°.
-  const a = compass ? -reading.webkitCompassHeading! * r : reading.alpha! * r;
+  // Keep alpha/beta/gamma together: their individual values can change sharply
+  // around upright poses while their combined rotation remains continuous.
+  const a = reading.alpha * r;
   const ca = Math.cos(a),
     sa = Math.sin(a),
     cb = Math.cos(b),

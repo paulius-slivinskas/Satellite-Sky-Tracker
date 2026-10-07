@@ -1,13 +1,11 @@
 import { CameraStabilizer } from '../domain/cameraStabilizer';
+import { SkyOrientationTracker, type SkyCalibration } from '../domain/skyOrientation';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import {
-  orientationAngles,
-  orientationCamera,
-  type OrientationReading,
-} from '../domain/deviceOrientation';
+import { orientationAngles, type OrientationReading } from '../domain/deviceOrientation';
 export type OrientationStatus =
   'idle' | 'requesting' | 'active' | 'denied' | 'unavailable' | 'stale' | 'error';
 interface Snapshot {
+  calibration?: SkyCalibration;
   accuracy?: number | null;
   camera?: import('../domain/skyProjection').SkyCamera | null;
   reference?: 'magnetic' | 'true' | null;
@@ -21,6 +19,7 @@ let headingSnapshot = snapshot;
 const subscribers = new Set<() => void>();
 let cleanup: (() => void) | null = null;
 let pending: Promise<void> | null = null;
+let alignNorth: (() => void) | null = null;
 let generation = 0;
 function publish(value: Snapshot) {
   snapshot = value;
@@ -74,6 +73,7 @@ async function startSensors() {
     let preferredSource = 0;
     let sourceUntil = 0;
     let smoother = new CameraStabilizer();
+    let tracker = new SkyOrientationTracker();
     let frame = 0;
     let latest: Snapshot | null = null;
     const animate = (time: number) => {
@@ -85,7 +85,12 @@ async function startSensors() {
     const onReading = (event: DeviceOrientationEvent) => {
       const reading = event as DeviceOrientationEvent & OrientationReading;
       const time = performance.now();
-      const source = Number.isFinite(reading.webkitCompassHeading)
+      // A missing/invalid magnetic sample does not change Safari's relative
+      // attitude frame or invalidate an already calibrated gyro orientation.
+      const iosSource =
+        'webkitCompassHeading' in reading ||
+        (preferredSource === 3 && event.type === 'deviceorientation' && !reading.absolute);
+      const source = iosSource
         ? 3
         : event.type === 'deviceorientationabsolute'
           ? 2
@@ -96,9 +101,13 @@ async function startSensors() {
       const screenAngle =
         screen.orientation?.angle ?? (window as Window & { orientation?: number }).orientation ?? 0;
       const angles = orientationAngles(reading, screenAngle);
-      const camera = orientationCamera(reading, screenAngle);
+      if (source !== preferredSource || Date.now() - lastReading > 3000) {
+        smoother = new CameraStabilizer();
+        tracker = new SkyOrientationTracker();
+      }
+      const camera = tracker.read(reading, screenAngle, time);
       // Empty or invalid readings must not replace a usable camera or renew its freshness.
-      if (angles.heading === null || !camera) {
+      if (!camera && !tracker.calibration) {
         if (snapshot.status !== 'active')
           publish({
             ...angles,
@@ -107,14 +116,13 @@ async function startSensors() {
           });
         return;
       }
-      if (source !== preferredSource || Date.now() - lastReading > 3000)
-        smoother = new CameraStabilizer();
       preferredSource = source;
       sourceUntil = time + 1500;
       lastReading = Date.now();
       received = true;
       latest = {
         ...angles,
+        calibration: tracker.calibration,
         accuracy:
           source === 3 && Number.isFinite(reading.webkitCompassAccuracy)
             ? reading.webkitCompassAccuracy!
@@ -123,8 +131,22 @@ async function startSensors() {
         status: 'active',
         error: null,
       };
+      if (!camera) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+        publish({ ...latest, camera: null });
+        return;
+      }
       smoother.ingest(camera, time);
       if (!frame) frame = window.requestAnimationFrame(animate);
+    };
+    alignNorth = () => {
+      tracker = new SkyOrientationTracker();
+      smoother = new CameraStabilizer();
+      latest = null;
+      window.cancelAnimationFrame(frame);
+      frame = 0;
+      publish({ ...snapshot, camera: null, calibration: 'hold-flat' });
     };
     window.addEventListener('deviceorientationabsolute', onReading);
     window.addEventListener('deviceorientation', onReading);
@@ -144,6 +166,7 @@ async function startSensors() {
       }
     }, 1000);
     cleanup = () => {
+      alignNorth = null;
       latest = null;
       window.cancelAnimationFrame(frame);
       window.removeEventListener('deviceorientationabsolute', onReading);
@@ -187,5 +210,6 @@ export function useDeviceOrientation(includeCamera = false) {
     [],
   );
   const stop = useCallback(() => stopSensors(), []);
-  return { ...value, requestPermission, stop };
+  const recalibrate = useCallback(() => alignNorth?.(), []);
+  return { ...value, requestPermission, stop, recalibrate };
 }

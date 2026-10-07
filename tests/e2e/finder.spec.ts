@@ -149,3 +149,63 @@ test('compass enable reports missing sensor readings in an app notification', as
   await dialog.getByRole('button', { name: 'Dismiss Compass unavailable', exact: true }).click();
   await expect(dialog.getByRole('alert')).toHaveCount(0);
 });
+
+test('iOS calibration holds the stationary view through compass swings and follows real turns', async ({
+  page,
+}) => {
+  await prepare(page);
+  await page.addInitScript(() =>
+    Object.defineProperty(DeviceOrientationEvent, 'requestPermission', {
+      configurable: true,
+      value: async () => 'granted',
+    }),
+  );
+  await page.goto(
+    `/?view=${encoded({ version: 2, selectedNorad: '25544', observer: { lat: 54.6872, lon: 25.2797, alt: 120, name: 'Vilnius' }, playing: false })}`,
+  );
+  await page.getByRole('button', { name: 'Find in the sky', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Satellite sky finder' });
+  await dialog.getByRole('button', { name: 'Enable compass', exact: true }).click();
+  await page.clock.install();
+  const reading = async (alpha: number, beta: number, heading?: number) => {
+    await page.evaluate(
+      ({ alpha, beta, heading }) => {
+        const event = new DeviceOrientationEvent('deviceorientation', {
+          alpha,
+          beta,
+          gamma: 0,
+          absolute: false,
+        });
+        if (heading !== undefined)
+          Object.defineProperties(event, {
+            webkitCompassHeading: { value: heading },
+            webkitCompassAccuracy: { value: 5 },
+          });
+        window.dispatchEvent(event);
+      },
+      { alpha, beta, heading },
+    );
+    await page.clock.runFor(80);
+  };
+  await reading(30, 110, 350);
+  await expect(dialog.getByRole('status')).toContainText('Hold your phone flat');
+  for (let i = 0; i < 9; i++) await reading(30, 0, 350);
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-tracking', 'live');
+  for (let i = 0; i < 20; i++) await reading(30, 110, 350);
+  const horizon = await dialog.locator('.finder-sky-horizon').getAttribute('d');
+  const bearing = await dialog.locator('.finder-sky-bearing').textContent();
+  // Long compass-only swings (not just alternating one-frame spikes).
+  for (const heading of [325, 350, 15]) {
+    for (let i = 0; i < 12; i++) await reading(30, 110, heading);
+    await expect(dialog.locator('.finder-sky-bearing')).toHaveText(bearing!);
+    await expect(dialog.locator('.finder-sky-horizon')).toHaveAttribute('d', horizon!);
+  }
+  // Keep the calibrated frame when the independent compass sample is missing.
+  for (let i = 0; i < 24; i++) await reading(30, 110);
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-tracking', 'live');
+  await expect(dialog.locator('.finder-sky-bearing')).toHaveText(bearing!);
+  for (let i = 0; i < 10; i++) await reading(10, 110, 350);
+  await expect(dialog.locator('.finder-sky-bearing')).toHaveText('10° · 20°');
+  await dialog.getByRole('button', { name: 'Align north', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Hold your phone flat');
+});

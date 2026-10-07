@@ -55,3 +55,17 @@ it('keeps an orthonormal camera during mixed yaw pitch and roll motion', () => {
     view.right.x * view.up.x + view.right.y * view.up.y + view.right.z * view.up.z,
   ).toBeCloseTo(0, 10);
 });
+it('holds sub-degree stationary jitter without freezing a deliberate slow turn', () => {
+  const filter = new CameraStabilizer();
+  filter.ingest(skyCamera(0, 20), 0);
+  for (let time = 16; time <= 3200; time += 16) {
+    filter.ingest(skyCamera(0.2 * Math.sin(time / 500), 20), time);
+    expect(heading(filter.advance(time)!)).toBeCloseTo(0, 8);
+  }
+  for (let step = 1; step <= 200; step++) {
+    const time = 3200 + step * 16;
+    filter.ingest(skyCamera(step * 0.02, 20), time);
+    filter.advance(time);
+  }
+  expect(heading(filter.advance(6416)!)).toBeGreaterThan(3.5);
+});

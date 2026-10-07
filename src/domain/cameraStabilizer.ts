@@ -49,6 +49,13 @@ export class CameraStabilizer {
   private lastFrame = 0;
   ingest(value: SkyCamera, now: number) {
     const next = quaternion(value);
+    // Compare with the accepted target, not the previous raw sample: tiny
+    // jitter stays still but a deliberate slow turn accumulates and breaks out.
+    if (this.target && distance(this.target, next) < 0.3) {
+      this.suspect = null;
+      this.lastAccepted = now;
+      return true;
+    }
     if (this.target && now - this.lastAccepted < 250 && distance(this.target, next) > 65) {
       if (!this.suspect || distance(this.suspect.value, next) > 20)
         this.suspect = { value: next, since: now };
