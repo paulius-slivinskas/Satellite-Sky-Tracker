@@ -1,13 +1,13 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { lookAngles } from '../domain/orbits';
-import { shortestTurn } from '../domain/finder';
+import { passSkyTrail, skyTrail } from '../domain/skyTrail';
 import {
   projectSky,
   skyCamera,
   skyGround,
+  skyGuide,
   skyPath,
-  SKY_HEIGHT,
-  SKY_WIDTH,
+  skyViewport,
   type SkyCamera,
 } from '../domain/skyProjection';
 import type { Observer, Satellite, Pass } from '../domain/types';
@@ -25,6 +25,20 @@ export function SatelliteSkyView({
   now: number;
   camera: SkyCamera | null;
 }) {
+  const container = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState(() =>
+    skyViewport(window.innerWidth, window.innerHeight),
+  );
+  useEffect(() => {
+    const element = container.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setViewport(skyViewport(width, height));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const look = observer ? lookAngles(satellite, now, observer) : null;
   const [manual, setManual] = useState(() => ({
     azimuth: look && look.elevation >= 0 ? look.azimuth : (pass?.riseAz ?? look?.azimuth ?? 0),
@@ -32,40 +46,44 @@ export function SatelliteSkyView({
   }));
   const drag = useRef<{ x: number; y: number; azimuth: number; elevation: number } | null>(null);
   const view = camera ?? skyCamera(manual.azimuth, manual.elevation);
-  const points = useMemo(() => {
-    if (!observer || !pass) return [];
-    const from = pass.losStart - 90000,
-      to = pass.losEnd + 90000;
-    return Array.from({ length: 181 }, (_, i) => {
-      const time = from + ((to - from) * i) / 180;
-      return { time, look: lookAngles(satellite, time, observer) };
-    });
-  }, [satellite, observer, pass]);
-  const horizon = skyPath(
-    view,
-    Array.from({ length: 121 }, (_, i) => ({ azimuth: i * 3, elevation: 0 })),
+  const points = useMemo(
+    () => (observer && pass ? passSkyTrail(satellite, observer, pass) : []),
+    [satellite, observer, pass],
   );
-  const track = skyPath(
-    view,
-    points.map((point) => point.look),
+  const trailTime = Math.floor(now / 10000) * 10000;
+  const approach = useMemo(
+    () =>
+      observer && pass && trailTime < pass.start
+        ? skyTrail(satellite, observer, trailTime, pass.start)
+        : [],
+    [satellite, observer, pass, trailTime],
   );
-  const elapsed = skyPath(
-    view,
-    points.map((point) => (point.time <= now ? point.look : null)),
-  );
-  const below = skyPath(
-    view,
-    points.map((point) => (point.look && point.look.elevation < 0 ? point.look : null)),
-  );
-  const target = look ? projectSky(view, look.azimuth, look.elevation) : null;
-  const azimuth =
-    ((((Math.atan2(view.forward.x, view.forward.y) * 180) / Math.PI) % 360) + 360) % 360;
+  const project = (az: number, el: number) => projectSky(view, az, el, viewport);
+  const path = (angles: Array<{ azimuth: number; elevation: number } | null>) =>
+    skyPath(view, angles, viewport);
+  const horizon = path(Array.from({ length: 121 }, (_, i) => ({ azimuth: i * 3, elevation: 0 })));
+  const track = path(points.map((point) => point.look));
+  const elapsed = path(points.map((point) => (point.time <= now ? point.look : null)));
+  const incoming = path([
+    look,
+    ...approach.filter((point) => point.time > now).map((point) => point.look),
+  ]);
+  const target = look ? project(look.azimuth, look.elevation) : null;
+  const guide = look ? skyGuide(view, look.azimuth, look.elevation, viewport) : null;
+  const azimuth = ((Math.atan2(view.forward.x, view.forward.y) * 180) / Math.PI + 360) % 360;
   const elevation = (Math.asin(Math.max(-1, Math.min(1, view.forward.z))) * 180) / Math.PI;
-  const turn = look ? shortestTurn(azimuth, look.azimuth) : 0;
+  const cx = viewport.width / 2,
+    cy = viewport.height / 2;
+  const direction = guide
+    ? Math.abs(Math.sin((guide.angle * Math.PI) / 180)) > 0.55
+      ? `Turn ${guide.angle > 0 ? 'right' : 'left'}`
+      : `Tilt ${Math.cos((guide.angle * Math.PI) / 180) > 0 ? 'up' : 'down'}`
+    : '';
   const label = (time: number) =>
     new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return (
     <div
+      ref={container}
       className="finder-sky"
       data-tracking={camera ? 'live' : 'manual'}
       onPointerDown={(event) => {
@@ -95,17 +113,16 @@ export function SatelliteSkyView({
       }}
     >
       <svg
-        viewBox={`0 0 ${SKY_WIDTH} ${SKY_HEIGHT}`}
+        viewBox={`0 0 ${viewport.width} ${viewport.height}`}
         role="img"
         aria-label={`Sky view for ${satellite.name}, horizon and satellite pass trajectory`}
       >
-        <polygon points={skyGround(view)} className="finder-sky-ground" />
+        <polygon points={skyGround(view, viewport)} className="finder-sky-ground" />
         <g className="finder-sky-grid">
           {[30, 60].map((level) => (
             <path
               key={level}
-              d={skyPath(
-                view,
+              d={path(
                 Array.from({ length: 121 }, (_, i) => ({ azimuth: i * 3, elevation: level })),
               )}
             />
@@ -113,10 +130,7 @@ export function SatelliteSkyView({
           {[0, 90, 180, 270].map((az) => (
             <path
               key={az}
-              d={skyPath(
-                view,
-                Array.from({ length: 61 }, (_, i) => ({ azimuth: az, elevation: i * 1.5 })),
-              )}
+              d={path(Array.from({ length: 61 }, (_, i) => ({ azimuth: az, elevation: i * 1.5 })))}
             />
           ))}
         </g>
@@ -127,7 +141,7 @@ export function SatelliteSkyView({
           ['S', 180],
           ['W', 270],
         ].map(([name, az]) => {
-          const point = projectSky(view, Number(az), 0);
+          const point = project(Number(az), 0);
           return point.visible ? (
             <text
               key={name}
@@ -142,21 +156,22 @@ export function SatelliteSkyView({
         })}
         <path d={track} className="finder-sky-track" />
         <path d={elapsed} className="finder-sky-elapsed" />
-        <path d={below} className="finder-sky-below" />
+        {approach.length > 0 && <path d={incoming} className="finder-sky-approach" />}
         {pass &&
           observer &&
           [
-            ['Rise', pass.losStart],
-            ['Set', pass.losEnd],
-          ].map(([name, time]) => {
+            { name: 'Rise', time: pass.start, clipped: pass.startClipped },
+            { name: 'Set', time: pass.end, clipped: pass.endClipped },
+          ].map(({ name, time, clipped }) => {
+            if (clipped) return null;
             const angles = lookAngles(satellite, Number(time), observer);
-            const point = angles ? projectSky(view, angles.azimuth, angles.elevation) : null;
+            const point = angles ? project(angles.azimuth, angles.elevation) : null;
             return point?.visible ? (
               <g key={name}>
                 <circle cx={point.x} cy={point.y} r="4" className="finder-sky-crossing" />
                 <text
-                  x={Math.max(46, Math.min(354, point.x))}
-                  y={Math.max(22, Math.min(436, point.y - 12))}
+                  x={Math.max(46, Math.min(viewport.width - 46, point.x))}
+                  y={Math.max(22, Math.min(viewport.height - 24, point.y - 12))}
                   textAnchor="middle"
                   className="finder-sky-crossing-label"
                 >
@@ -165,7 +180,25 @@ export function SatelliteSkyView({
               </g>
             ) : null;
           })}
-        <path d="M188 230h8m8 0h8m-12-12v8m0 8v8" className="finder-sky-reticle" />
+        <g
+          transform={`translate(${cx} ${cy})`}
+          className="finder-sky-reticle"
+          data-aligned={!!guide && guide.distance <= 5}
+        >
+          <circle r="23" />
+          <path d="M-30 0h12m36 0h12M0-30v12m0 36v12" />
+          <circle r="2" />
+        </g>
+        {guide && guide.distance > 5 && (
+          <g
+            className="finder-sky-guide"
+            data-testid="sky-guide"
+            transform={`translate(${guide.x} ${guide.y})`}
+          >
+            <title>Point the phone towards the satellite</title>
+            <path d="M0 9V-7m-6 5 6-7 6 7" transform={`rotate(${guide.angle})`} />
+          </g>
+        )}
         {target?.visible && (
           <g
             className="finder-sky-satellite"
@@ -183,13 +216,13 @@ export function SatelliteSkyView({
       <div className="finder-sky-mode">
         {camera ? 'Phone tracking' : 'Preview · Drag to explore'}
       </div>
-      {target && !target.visible && (
+      {guide && guide.distance > 5 && (
         <div className="finder-sky-direction" aria-live="off">
-          {target.depth <= 0 || target.x < 0 || target.x > SKY_WIDTH
-            ? `Turn ${turn > 0 ? 'right' : 'left'} ${Math.round(Math.abs(turn))}°`
-            : `Tilt ${look!.elevation > elevation ? 'up' : 'down'} ${Math.round(Math.abs(look!.elevation - elevation))}°`}
+          {direction} {Math.round(guide.distance)}°
           <span>
-            {look!.elevation < 0 ? 'Satellite below the horizon' : 'Satellite outside this view'}
+            {look!.elevation < 0
+              ? 'Satellite below the horizon'
+              : 'Follow the arrow to the satellite'}
           </span>
         </div>
       )}

@@ -1,12 +1,19 @@
 import { test, expect, prepare, openSidebar, encoded } from './fixtures';
 
-test('loads React/HeroUI UI, toggles filters, and pauses simulation', async ({ page }) => {
+test('loads React/HeroUI UI, toggles filters, and pauses simulation', async ({
+  page,
+}, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await prepare(page);
   await page.goto('/');
   await openSidebar(page);
-  await expect(page.getByRole('heading', { name: 'Satellite Sky Tracker' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      name: testInfo.project.use.hasTouch ? 'Filter' : 'Satellite Sky Tracker',
+      exact: true,
+    }),
+  ).toBeVisible();
   await expect(page.getByTestId('sat-count')).toContainText('visible from selected categories');
   await expect(page.getByRole('switch', { name: 'Starlink', exact: true })).not.toBeChecked();
   await page.getByRole('button', { name: 'Clear all', exact: true }).click();
@@ -58,7 +65,7 @@ test('search selects satellite, renders normalized radio and keeps tracking afte
 
 test('restores legacy shared view and calculates passes in worker without clearing the list', async ({
   page,
-}) => {
+}, testInfo) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await prepare(page);
@@ -84,18 +91,27 @@ test('restores legacy shared view and calculates passes in worker without cleari
     'true',
   );
   await expect(page.locator('.pass-item')).toHaveCount(3, { timeout: 20000 });
+  if (testInfo.project.use.hasTouch)
+    await page.getByRole('button', { name: 'Close sidebar', exact: true }).click();
   await expect(page.getByText('18:22:42', { exact: true })).toBeVisible();
   await page.locator('.pass-item').first().focus();
   await expect(page.locator('.pass-item').first()).toHaveClass(/pass-item-hover/);
   expect(errors).toEqual([]);
 });
 
-test('empty categories survive a shared URL and malformed URLs do not crash', async ({ page }) => {
+test('empty categories survive a shared URL and malformed URLs do not crash', async ({
+  page,
+}, testInfo) => {
   await prepare(page);
   await page.goto(`/?view=${encoded({ version: 2, categories: [], playing: false })}`);
   await openSidebar(page);
   await expect(page.getByTestId('sat-count')).toHaveText('0 visible from selected categories');
   await page.goto('/?view=not-valid-json');
   await openSidebar(page);
-  await expect(page.getByRole('heading', { name: 'Satellite Sky Tracker' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      name: testInfo.project.use.hasTouch ? 'Filter' : 'Satellite Sky Tracker',
+      exact: true,
+    }),
+  ).toBeVisible();
 });

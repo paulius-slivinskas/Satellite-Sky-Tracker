@@ -45,6 +45,7 @@ test('selecting a pass keeps its highlight and opens the mobile map without them
   await openSidebar(page);
   const mobile = !!testInfo.project.use.hasTouch;
   if (mobile) await expect(page.locator('.theme-control')).toBeHidden();
+  if (mobile) await page.getByRole('button', { name: 'Close sidebar', exact: true }).click();
   const card = page.locator('.pass-item').nth(1);
   await expect(card).toBeVisible();
   if (mobile) await card.locator('.pass-header').tap();
@@ -61,13 +62,15 @@ test('selecting a pass keeps its highlight and opens the mobile map without them
 
 test('compact pass summary keeps predictions fixed while current position follows map time', async ({
   page,
-}) => {
+}, testInfo) => {
   await prepare(page);
   await page.clock.install();
   await page.goto(
     `/?view=${encoded({ version: 2, tab: 'passes', categories: ['iss'], playing: true, speed: 1, simulatedTimeMs: Date.parse('2024-02-29T12:30:00Z'), passRange: '24h', passWatchlist: ['25544'], observer: { lat: 54.6872, lon: 25.2797, alt: 120, name: 'Vilnius' } })}`,
   );
   await openSidebar(page);
+  if (testInfo.project.use.hasTouch)
+    await page.getByRole('button', { name: 'Close sidebar', exact: true }).click();
   const card = page.locator('.pass-item').first();
   await expect(card.locator('.pass-content > .pass-summary-grid .pass-row')).toHaveCount(3);
   const start = await card.locator('.pass-content > .pass-summary-grid dd').first().innerText();
@@ -109,6 +112,8 @@ test('trajectory selection opens satellite details and closing them preserves pa
     )
     .toEqual([losStart]);
   await openSidebar(page);
+  if (testInfo.project.use.hasTouch)
+    await page.getByRole('button', { name: 'Close sidebar', exact: true }).click();
   const card = page.locator('.pass-item').nth(1);
   await expect(card).toHaveAttribute('aria-pressed', 'true');
   const start = Number(await card.getAttribute('data-pass-start'));
@@ -120,6 +125,8 @@ test('trajectory selection opens satellite details and closing them preserves pa
   await expect(finder.getByText(/Not started yet/)).toHaveCount(0);
   const countdown = finder.getByRole('timer', { name: 'Until pass start' });
   await expect(countdown).toHaveText(/\d{2}:\d{2}:\d{2}/);
+  await expect(finder.locator('.finder-sky-approach')).toHaveCount(1);
+  await expect(finder.locator('.finder-sky-approach')).toHaveCSS('stroke-dasharray', '3px, 6px');
   await expect(finder.getByText('until pass start', { exact: true })).toBeVisible();
   await page.clock.setFixedTime(new Date(Math.ceil(start) - 65000));
   await expect(countdown).toHaveText('00:01:05');
@@ -128,8 +135,12 @@ test('trajectory selection opens satellite details and closing them preserves pa
   await page.clock.setFixedTime(new Date(Math.ceil(start)));
   await expect(countdown).toHaveCount(0);
   await page.clock.setFixedTime(new Date((start + end) / 2));
-  await expect(finder.getByRole('img')).toHaveAttribute('aria-label', /^Pass 50 percent complete/);
-  expect(Number(await finder.locator('.finder-pass-dot').getAttribute('cx'))).toBeCloseTo(200, 1);
+  await expect(finder.getByRole('img')).toHaveAttribute(
+    'aria-label',
+    /horizon and satellite pass trajectory/,
+  );
+  await expect(finder.locator('.finder-sky-approach')).toHaveCount(0);
+  await expect(finder.locator('.finder-horizon-times')).toContainText('Rise');
   await expect(finder.getByRole('img')).toBeInViewport({ ratio: 1 });
   await page.screenshot({ path: testInfo.outputPath('red-finder-pass-progress.png') });
   await expect(finder.getByRole('region', { name: 'Upcoming trajectory' })).toHaveCount(0);

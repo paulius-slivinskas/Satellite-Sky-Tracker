@@ -1,5 +1,5 @@
 import { test, expect, prepare, encoded } from './fixtures';
-test('minimal finder uses live clock and a faint cardinal compass with centered satellite name', async ({
+test('fullscreen finder tracks orientation behind overlays and guides around its reticle', async ({
   page,
 }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -22,6 +22,12 @@ test('minimal finder uses live clock and a faint cardinal compass with centered 
     'center',
   );
   await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-tracking', 'manual');
+  const skyBox = (await dialog.locator('.finder-sky').boundingBox())!;
+  expect(skyBox).toMatchObject({ x: 0, y: 0, width: 390, height: 844 });
+  await expect(dialog.locator('.finder-sky-reticle')).toHaveAttribute(
+    'transform',
+    'translate(195 422)',
+  );
   await expect(dialog.locator('.finder-sky-horizon')).toHaveAttribute('d', /M/);
   await expect(dialog.locator('.finder-sky-track')).toHaveAttribute('d', /M/);
   await expect(dialog.locator('.finder-live-position dd').first()).toHaveText(/\d+\.\d°/);
@@ -57,6 +63,24 @@ test('minimal finder uses live clock and a faint cardinal compass with centered 
     ),
   );
   await expect(dialog.locator('.finder-sky-horizon')).not.toHaveAttribute('d', horizon!);
+  await expect(dialog.getByTestId('sky-guide')).toBeVisible();
+  const guideOffset = await dialog.getByTestId('sky-guide').evaluate((el) => {
+    const [x, y] = el
+      .getAttribute('transform')!
+      .match(/-?[0-9.]+/g)!
+      .map(Number);
+    return Math.hypot(x - 195, y - 422);
+  });
+  expect(guideOffset).toBeCloseTo(48);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(dialog.locator('.finder-sky-reticle')).toHaveAttribute(
+    'transform',
+    'translate(422 195)',
+  );
+  await expect(dialog.getByRole('button', { name: 'Close sky finder' })).toBeInViewport({
+    ratio: 1,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
   const before = await dialog.locator('.finder-live-position dd').allTextContents();
   await page.clock.setFixedTime(new Date('2024-02-29T12:31:00Z'));
   await expect

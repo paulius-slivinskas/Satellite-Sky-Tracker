@@ -74,7 +74,8 @@ async function setup(page: Page, denied = false, audioAvailable = true) {
     `/?view=${encoded({ version: 2, tab: 'passes', categories: ['iss'], passWatchlist: ['25544'], observer: { lat: 54.6872, lon: 25.2797, alt: 120, name: 'Vilnius' }, playing: false, simulatedTimeMs: Date.parse('2024-02-29T12:30:00Z') })}`,
   );
   await openSidebar(page);
-  await expect(page.locator('.pass-item').first()).toBeVisible();
+  // Mobile keeps pass cards on the map, hidden while notification controls are open.
+  await expect(page.locator('.pass-summary')).toContainText('6 passes · 1 satellite');
 }
 const delivered = (page: Page) =>
   page.evaluate(() => {

@@ -57,7 +57,7 @@ function FinderView({
   onClose: () => void;
   pass?: SatellitePass;
 }) {
-  const orientation = useDeviceOrientation();
+  const orientation = useDeviceOrientation(true);
   const [attempted, setAttempted] = useState(false);
   const [notice, setNotice] = useState<{ id: number; body: string } | null>(null);
   useEffect(() => {
@@ -157,6 +157,13 @@ function FinderView({
         }
       }}
     >
+      <SatelliteSkyView
+        satellite={satellite}
+        observer={observer}
+        pass={shownPass}
+        now={now}
+        camera={sensorActive ? orientation.camera! : null}
+      />
       <header className="finder-header">
         <h2>{satellite.name}</h2>
         <CloseButton
@@ -179,13 +186,6 @@ function FinderView({
         </div>
       )}
       <div className="finder-body">
-        <SatelliteSkyView
-          satellite={satellite}
-          observer={observer}
-          pass={shownPass}
-          now={now}
-          camera={sensorActive ? orientation.camera! : null}
-        />
         <div className="finder-tracking-controls">
           {sensorActive ? (
             <p>Hold the screen towards you and point the phone at the sky.</p>
@@ -216,6 +216,15 @@ function FinderView({
           </div>
         </dl>
         <div className="finder-state">
+          {sensorActive && orientation.accuracy != null && orientation.accuracy > 25 ? (
+            <Chip size="sm" variant="soft">
+              <Chip.Label>Low compass accuracy · move away from metal</Chip.Label>
+            </Chip>
+          ) : sensorActive && orientation.reference === 'magnetic' ? (
+            <Chip size="sm" variant="soft">
+              <Chip.Label>Approximate compass direction</Chip.Label>
+            </Chip>
+          ) : null}
           {!observer ? (
             <Chip size="sm" variant="soft">
               <Chip.Label>Observer location required</Chip.Label>
@@ -248,10 +257,10 @@ function FinderView({
             {progress.status === 'complete' && <p className="finder-pass-state">Pass complete</p>}
             <div className="finder-horizon-times">
               <span>
-                Rise <strong>{clock(shownPass.losStart)}</strong>
+                Rise <strong>{shownPass.startClipped ? '—' : clock(shownPass.start)}</strong>
               </span>
               <span>
-                Set <strong>{clock(shownPass.losEnd)}</strong>
+                Set <strong>{shownPass.endClipped ? '—' : clock(shownPass.end)}</strong>
               </span>
             </div>
           </section>

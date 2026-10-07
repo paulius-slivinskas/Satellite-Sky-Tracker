@@ -1,3 +1,4 @@
+import { CameraStabilizer } from '../domain/cameraStabilizer';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import {
   orientationAngles,
@@ -7,6 +8,7 @@ import {
 export type OrientationStatus =
   'idle' | 'requesting' | 'active' | 'denied' | 'unavailable' | 'stale' | 'error';
 interface Snapshot {
+  accuracy?: number | null;
   camera?: import('../domain/skyProjection').SkyCamera | null;
   reference?: 'magnetic' | 'true' | null;
   heading: number | null;
@@ -15,12 +17,21 @@ interface Snapshot {
   error: string | null;
 }
 let snapshot: Snapshot = { heading: null, elevation: null, status: 'idle', error: null };
+let headingSnapshot = snapshot;
 const subscribers = new Set<() => void>();
 let cleanup: (() => void) | null = null;
 let pending: Promise<void> | null = null;
 let generation = 0;
 function publish(value: Snapshot) {
   snapshot = value;
+  if (
+    headingSnapshot.heading !== value.heading ||
+    headingSnapshot.elevation !== value.elevation ||
+    headingSnapshot.status !== value.status ||
+    headingSnapshot.error !== value.error ||
+    headingSnapshot.reference !== value.reference
+  )
+    headingSnapshot = { ...value, camera: undefined };
   subscribers.forEach((listener) => listener());
 }
 function stopSensors() {
@@ -60,42 +71,68 @@ async function startSensors() {
     if (!subscribers.size || generation !== started) return;
     let lastReading = Date.now();
     let received = false;
-    let absoluteUntil = 0;
+    let preferredSource = 0;
+    let sourceUntil = 0;
+    let smoother = new CameraStabilizer();
+    let frame = 0;
+    let latest: Snapshot | null = null;
+    const animate = (time: number) => {
+      frame = 0;
+      if (!latest) return;
+      publish({ ...latest, camera: smoother.advance(time) });
+      if (!smoother.settled) frame = window.requestAnimationFrame(animate);
+    };
     const onReading = (event: DeviceOrientationEvent) => {
       const reading = event as DeviceOrientationEvent & OrientationReading;
-      const absolute = reading.absolute || Number.isFinite(reading.webkitCompassHeading);
-      if (!absolute && Date.now() < absoluteUntil) return;
-      if (absolute) absoluteUntil = Date.now() + 1500;
-      const angles = orientationAngles(
-        reading,
-        screen.orientation?.angle ?? (window as Window & { orientation?: number }).orientation ?? 0,
-      );
-      // Some browsers interleave empty sensor events with valid compass readings.
-      // Keep the last usable reading until the freshness timer expires.
-      if (angles.heading === null && snapshot.status === 'active') return;
+      const time = performance.now();
+      const source = Number.isFinite(reading.webkitCompassHeading)
+        ? 3
+        : event.type === 'deviceorientationabsolute'
+          ? 2
+          : reading.absolute
+            ? 1
+            : 0;
+      if (source < preferredSource && time < sourceUntil) return;
+      const screenAngle =
+        screen.orientation?.angle ?? (window as Window & { orientation?: number }).orientation ?? 0;
+      const angles = orientationAngles(reading, screenAngle);
+      const camera = orientationCamera(reading, screenAngle);
+      // Empty or invalid readings must not replace a usable camera or renew its freshness.
+      if (angles.heading === null || !camera) {
+        if (snapshot.status !== 'active')
+          publish({
+            ...angles,
+            status: 'unavailable',
+            error: 'North-referenced compass data is unavailable.',
+          });
+        return;
+      }
+      if (source !== preferredSource || Date.now() - lastReading > 3000)
+        smoother = new CameraStabilizer();
+      preferredSource = source;
+      sourceUntil = time + 1500;
       lastReading = Date.now();
       received = true;
-      publish({
+      latest = {
         ...angles,
-        camera: orientationCamera(
-          reading,
-          screen.orientation?.angle ??
-            (window as Window & { orientation?: number }).orientation ??
-            0,
-        ),
-        reference: Number.isFinite(reading.webkitCompassHeading)
-          ? 'magnetic'
-          : reading.absolute
-            ? 'true'
+        accuracy:
+          source === 3 && Number.isFinite(reading.webkitCompassAccuracy)
+            ? reading.webkitCompassAccuracy!
             : null,
-        status: angles.heading === null ? 'unavailable' : 'active',
-        error: angles.heading === null ? 'North-referenced compass data is unavailable.' : null,
-      });
+        reference: source === 3 ? 'magnetic' : 'true',
+        status: 'active',
+        error: null,
+      };
+      smoother.ingest(camera, time);
+      if (!frame) frame = window.requestAnimationFrame(animate);
     };
     window.addEventListener('deviceorientationabsolute', onReading);
     window.addEventListener('deviceorientation', onReading);
     const timer = window.setInterval(() => {
-      if (Date.now() - lastReading > 3000)
+      if (Date.now() - lastReading > 3000) {
+        latest = null;
+        window.cancelAnimationFrame(frame);
+        frame = 0;
         publish({
           heading: null,
           elevation: null,
@@ -104,8 +141,11 @@ async function startSensors() {
             ? 'Compass signal paused. Keep this page visible.'
             : 'No compass readings received from this device.',
         });
+      }
     }, 1000);
     cleanup = () => {
+      latest = null;
+      window.cancelAnimationFrame(frame);
       window.removeEventListener('deviceorientationabsolute', onReading);
       window.removeEventListener('deviceorientation', onReading);
       window.clearInterval(timer);
@@ -134,11 +174,11 @@ function subscribe(listener: () => void) {
     if (!subscribers.size) stopSensors();
   };
 }
-export function useDeviceOrientation() {
+export function useDeviceOrientation(includeCamera = false) {
   const value = useSyncExternalStore(
     subscribe,
-    () => snapshot,
-    () => snapshot,
+    () => (includeCamera ? snapshot : headingSnapshot),
+    () => (includeCamera ? snapshot : headingSnapshot),
   );
   useEffect(
     () => () => {

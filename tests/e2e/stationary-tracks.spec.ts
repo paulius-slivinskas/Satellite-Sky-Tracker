@@ -286,10 +286,12 @@ test('a paused selected orbit keeps geometry, trim offsets and time bounds uncha
 
 test('a sixty-step drag preserves interior chunks without rewriting every path on animation frames', async ({
   page,
-}) => {
+}, testInfo) => {
   await setup(page);
   await page.goto(`/?view=${encoded({ ...base, selectedNorad: '25544', speed: 1 })}`);
   await expect(page.locator('.status')).toHaveCount(0, { timeout: 20000 });
+  if (testInfo.project.use.hasTouch)
+    await page.getByRole('button', { name: 'Close satellite details', exact: true }).click();
   await capture(page, orbitSelectors);
   await expect
     .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('satapp_view_v2') || '{}').map))

@@ -57,6 +57,8 @@ test('aliases are searchable and visible in search modal, details and pass selec
   await input.fill('ao91');
   const row = dialog.getByRole('checkbox', { name: 'RADFXSAT (FOX-1B) (43017)', exact: true });
   await row.locator('xpath=ancestor::label').click();
+  if (testInfo.project.use.hasTouch)
+    await dialog.getByRole('tab', { name: 'Selected (1)', exact: true }).click();
   await expect(dialog.getByRole('region', { name: 'Selected satellites' })).toContainText(
     'Also known as: AO-91',
   );

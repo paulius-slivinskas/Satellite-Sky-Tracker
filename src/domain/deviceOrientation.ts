@@ -67,11 +67,9 @@ export function orientationCamera(
   const b = reading.beta * r,
     g = reading.gamma * r,
     s = screenAngle * r;
-  // Calibrate the intrinsic yaw to the iOS north bearing of the screen top.
-  const topEast = 0;
-  const topNorth = Math.cos(b);
-  const reference = Math.abs(topNorth) > 0.01 ? Math.atan2(topEast, topNorth) : 0;
-  const a = compass ? reference - reading.webkitCompassHeading! * r : reading.alpha! * r;
+  // iOS compass heading is clockwise; intrinsic alpha is counterclockwise.
+  // Never add a pitch-dependent half turn: that flips the view at beta=90°.
+  const a = compass ? -reading.webkitCompassHeading! * r : reading.alpha! * r;
   const ca = Math.cos(a),
     sa = Math.sin(a),
     cb = Math.cos(b),
