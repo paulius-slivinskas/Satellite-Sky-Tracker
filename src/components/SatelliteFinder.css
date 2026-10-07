@@ -70,7 +70,7 @@
   display: grid;
   justify-items: center;
   gap: 10px;
-  max-height: 42%;
+  max-height: calc(50% - 116px);
   overflow-y: auto;
   pointer-events: auto;
 }

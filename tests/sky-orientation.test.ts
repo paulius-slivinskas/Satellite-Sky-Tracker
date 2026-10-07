@@ -1,6 +1,10 @@
 import { expect, it } from 'vitest';
 import { SkyOrientationTracker } from '../src/domain/skyOrientation';
-import { orientationCamera, type OrientationReading } from '../src/domain/deviceOrientation';
+import {
+  orientationCamera,
+  relativeOrientationCamera,
+  type OrientationReading,
+} from '../src/domain/deviceOrientation';
 import { projectSky, type SkyCamera } from '../src/domain/skyProjection';
 
 const ios: OrientationReading = {
@@ -22,13 +26,19 @@ function align(reading = ios, screenAngle = 0) {
   expect(tracker.calibration).toBeNull();
   return tracker;
 }
-it('requires a stable flat north reference before using relative iOS attitude', () => {
+it('tracks upright movement immediately while waiting for a stable north reference', () => {
   const tracker = new SkyOrientationTracker();
-  expect(tracker.read({ ...ios, beta: 90 }, 0, 0)).toBeNull();
+  const upright = { ...ios, beta: 90 };
+  closeCamera(tracker.read(upright, 0, 0)!, relativeOrientationCamera(upright)!);
   expect(tracker.calibration).toBe('hold-flat');
-  expect(tracker.read(ios, 0, 16)).toBeNull();
+  const turned = { ...upright, alpha: 10, beta: 120 };
+  closeCamera(tracker.read(turned, 0, 8)!, relativeOrientationCamera(turned)!);
+  expect(tracker.read(ios, 0, 16)).not.toBeNull();
   expect(tracker.calibration).toBe('hold-still');
-  for (let time = 32; time < 616; time += 16) expect(tracker.read(ios, 0, time)).toBeNull();
+  for (let time = 32; time < 616; time += 16) {
+    expect(tracker.read(ios, 0, time)).not.toBeNull();
+    expect(tracker.calibration).toBe('hold-still');
+  }
   expect(tracker.read(ios, 0, 624)).not.toBeNull();
   const raised = tracker.read({ ...ios, beta: 110 }, 0, 640)!;
   expect(projectSky(raised, 350, 20).x).toBeCloseTo(200);
@@ -87,10 +97,12 @@ it('averages calibration across the north seam and rejects unstable or inaccurat
   for (let time = 0; time < 2000; time += 16) {
     expect(
       tracker.read({ ...ios, webkitCompassHeading: time % 32 ? 330 : 10 }, 0, time),
-    ).toBeNull();
+    ).not.toBeNull();
+    expect(tracker.calibration).toBe('hold-still');
   }
   for (const accuracy of [-1, NaN, 50]) {
-    expect(tracker.read({ ...ios, webkitCompassAccuracy: accuracy }, 0, 2016)).toBeNull();
+    const reading = { ...ios, beta: 110, webkitCompassAccuracy: accuracy };
+    closeCamera(tracker.read(reading, 0, 2016)!, relativeOrientationCamera(reading)!);
     expect(tracker.calibration).toBe('poor-accuracy');
   }
   for (let time = 2032; time <= 2800; time += 16) {
@@ -107,5 +119,14 @@ it('keeps absolute devices working immediately and never fabricates missing rela
   closeCamera(tracker.read(absolute, 90, 0)!, orientationCamera(absolute, 90)!);
   expect(tracker.read({ ...ios, alpha: null }, 0, 16)).toBeNull();
   expect(tracker.read({ ...ios, beta: NaN }, 0, 32)).toBeNull();
-  expect(new SkyOrientationTracker().read({ ...ios, webkitCompassHeading: -1 }, 0, 0)).toBeNull();
+  const invalidHeading = new SkyOrientationTracker();
+  expect(invalidHeading.read({ ...ios, webkitCompassHeading: -1 }, 0, 0)).not.toBeNull();
+  expect(invalidHeading.calibration).toBe('poor-accuracy');
+});
+it('keeps motion alive while the compass temporarily omits its heading before alignment', () => {
+  const tracker = new SkyOrientationTracker();
+  tracker.read({ ...ios, beta: 110 }, 0, 0);
+  const reading = { alpha: 10, beta: 120, gamma: 15, absolute: false };
+  closeCamera(tracker.read(reading, 90, 16)!, relativeOrientationCamera(reading, 90)!);
+  expect(tracker.calibration).toBe('poor-accuracy');
 });

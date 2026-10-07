@@ -163,6 +163,7 @@ function FinderView({
         pass={shownPass}
         now={now}
         camera={sensorActive ? orientation.camera! : null}
+        northAligned={!sensorActive || !orientation.calibration}
       />
       <header className="finder-header">
         <h2>{satellite.name}</h2>
@@ -187,7 +188,15 @@ function FinderView({
       )}
       <div className="finder-body">
         <div className="finder-tracking-controls">
-          {sensorActive ? (
+          {orientation.calibration ? (
+            <p role="status">
+              {orientation.calibration === 'poor-accuracy'
+                ? 'Motion tracking is on. Move away from metal and hold the phone flat to align north.'
+                : orientation.calibration === 'hold-still'
+                  ? 'Motion tracking is on. Hold still for a moment to align north…'
+                  : 'Motion tracking is on. Hold your phone flat, screen up, for a moment to align north.'}
+            </p>
+          ) : sensorActive ? (
             <>
               <p>Hold the screen towards you and point the phone at the sky.</p>
               {orientation.reference === 'magnetic' && (
@@ -196,14 +205,6 @@ function FinderView({
                 </Button>
               )}
             </>
-          ) : orientation.calibration ? (
-            <p role="status">
-              {orientation.calibration === 'poor-accuracy'
-                ? 'Compass accuracy is low. Move away from metal, then hold the phone flat.'
-                : orientation.calibration === 'hold-still'
-                  ? 'Hold still for a moment to align north…'
-                  : 'Hold your phone flat, screen up, to align north. Then raise it towards the sky.'}
-            </p>
           ) : (
             <Button
               size="sm"
@@ -232,12 +233,13 @@ function FinderView({
         </dl>
         <div className="finder-state">
           {sensorActive &&
+          !orientation.calibration &&
           orientation.accuracy != null &&
           (orientation.accuracy < 0 || orientation.accuracy > 25) ? (
             <Chip size="sm" variant="soft">
               <Chip.Label>Low compass accuracy · move away from metal</Chip.Label>
             </Chip>
-          ) : sensorActive && orientation.reference === 'magnetic' ? (
+          ) : sensorActive && !orientation.calibration && orientation.reference === 'magnetic' ? (
             <Chip size="sm" variant="soft">
               <Chip.Label>Approximate compass direction</Chip.Label>
             </Chip>

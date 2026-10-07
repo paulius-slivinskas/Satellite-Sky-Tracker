@@ -152,7 +152,7 @@ test('compass enable reports missing sensor readings in an app notification', as
 
 test('iOS calibration holds the stationary view through compass swings and follows real turns', async ({
   page,
-}) => {
+}, testInfo) => {
   await prepare(page);
   await page.addInitScript(() =>
     Object.defineProperty(DeviceOrientationEvent, 'requestPermission', {
@@ -167,9 +167,9 @@ test('iOS calibration holds the stationary view through compass swings and follo
   const dialog = page.getByRole('dialog', { name: 'Satellite sky finder' });
   await dialog.getByRole('button', { name: 'Enable compass', exact: true }).click();
   await page.clock.install();
-  const reading = async (alpha: number, beta: number, heading?: number) => {
+  const reading = async (alpha: number, beta: number, heading?: number, accuracy = 5) => {
     await page.evaluate(
-      ({ alpha, beta, heading }) => {
+      ({ alpha, beta, heading, accuracy }) => {
         const event = new DeviceOrientationEvent('deviceorientation', {
           alpha,
           beta,
@@ -179,19 +179,40 @@ test('iOS calibration holds the stationary view through compass swings and follo
         if (heading !== undefined)
           Object.defineProperties(event, {
             webkitCompassHeading: { value: heading },
-            webkitCompassAccuracy: { value: 5 },
+            webkitCompassAccuracy: { value: accuracy },
           });
         window.dispatchEvent(event);
       },
-      { alpha, beta, heading },
+      { alpha, beta, heading, accuracy },
     );
     await page.clock.runFor(80);
   };
   await reading(30, 110, 350);
   await expect(dialog.getByRole('status')).toContainText('Hold your phone flat');
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-tracking', 'live');
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-north-aligned', 'false');
+  await expect(dialog.getByTestId('sky-guide')).toHaveCount(0);
+  await expect(dialog.locator('.finder-sky-track')).toHaveCount(0);
+  const unalignedHorizon = await dialog.locator('.finder-sky-horizon').getAttribute('d');
+  for (let i = 0; i < 10; i++) await reading(10, 120, 350);
+  await expect(dialog.locator('.finder-sky-horizon')).not.toHaveAttribute('d', unalignedHorizon!);
+  await expect(dialog.locator('.finder-sky-bearing')).toHaveText('Tilt 30°');
+  await expect(dialog.getByRole('status')).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: testInfo.outputPath('motion-before-north-alignment.png') });
+  // Invalid magnetic data must not suppress working phone motion.
+  for (let i = 0; i < 10; i++) await reading(10, 130, 0, -1);
+  await expect(dialog.locator('.finder-sky-bearing')).toHaveText('Tilt 40°');
+  await expect(dialog.getByRole('status')).toContainText('Move away from metal');
   for (let i = 0; i < 9; i++) await reading(30, 0, 350);
   await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-tracking', 'live');
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-north-aligned', 'true');
   for (let i = 0; i < 20; i++) await reading(30, 110, 350);
+  await expect(dialog.locator('.finder-sky-mode')).toHaveText('Phone tracking');
+  await expect(dialog.getByRole('status')).toHaveCount(0);
+  const directionBox = (await dialog.locator('.finder-sky-direction').boundingBox())!;
+  const controlsBox = (await dialog.locator('.finder-tracking-controls').boundingBox())!;
+  expect(directionBox.y + directionBox.height).toBeLessThanOrEqual(controlsBox.y);
+  await page.screenshot({ path: testInfo.outputPath('north-aligned-tracking.png') });
   const horizon = await dialog.locator('.finder-sky-horizon').getAttribute('d');
   const bearing = await dialog.locator('.finder-sky-bearing').textContent();
   // Long compass-only swings (not just alternating one-frame spikes).
@@ -208,4 +229,8 @@ test('iOS calibration holds the stationary view through compass swings and follo
   await expect(dialog.locator('.finder-sky-bearing')).toHaveText('10° · 20°');
   await dialog.getByRole('button', { name: 'Align north', exact: true }).click();
   await expect(dialog.getByRole('status')).toContainText('Hold your phone flat');
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-tracking', 'live');
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-north-aligned', 'false');
+  for (let i = 0; i < 10; i++) await reading(10, 120, 350);
+  await expect(dialog.locator('.finder-sky-bearing')).toHaveText('Tilt 30°');
 });

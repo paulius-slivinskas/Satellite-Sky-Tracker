@@ -141,12 +141,9 @@ async function startSensors() {
       if (!frame) frame = window.requestAnimationFrame(animate);
     };
     alignNorth = () => {
-      tracker = new SkyOrientationTracker();
-      smoother = new CameraStabilizer();
-      latest = null;
-      window.cancelAnimationFrame(frame);
-      frame = 0;
-      publish({ ...snapshot, camera: null, calibration: 'hold-flat' });
+      tracker.recalibrate();
+      latest = { ...snapshot, calibration: 'hold-flat' };
+      publish(latest);
     };
     window.addEventListener('deviceorientationabsolute', onReading);
     window.addEventListener('deviceorientation', onReading);

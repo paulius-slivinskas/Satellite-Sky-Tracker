@@ -18,12 +18,14 @@ export function SatelliteSkyView({
   pass,
   now,
   camera,
+  northAligned = true,
 }: {
   satellite: Satellite;
   observer: Observer | null;
   pass: Pass | null;
   now: number;
   camera: SkyCamera | null;
+  northAligned?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState(() =>
@@ -68,8 +70,9 @@ export function SatelliteSkyView({
     look,
     ...approach.filter((point) => point.time > now).map((point) => point.look),
   ]);
-  const target = look ? project(look.azimuth, look.elevation) : null;
-  const guide = look ? skyGuide(view, look.azimuth, look.elevation, viewport) : null;
+  const target = look && northAligned ? project(look.azimuth, look.elevation) : null;
+  const guide =
+    look && northAligned ? skyGuide(view, look.azimuth, look.elevation, viewport) : null;
   const azimuth = ((Math.atan2(view.forward.x, view.forward.y) * 180) / Math.PI + 360) % 360;
   const elevation = (Math.asin(Math.max(-1, Math.min(1, view.forward.z))) * 180) / Math.PI;
   const cx = viewport.width / 2,
@@ -86,6 +89,7 @@ export function SatelliteSkyView({
       ref={container}
       className="finder-sky"
       data-tracking={camera ? 'live' : 'manual'}
+      data-north-aligned={northAligned}
       onPointerDown={(event) => {
         if (camera) return;
         drag.current = { x: event.clientX, y: event.clientY, ...manual };
@@ -115,7 +119,11 @@ export function SatelliteSkyView({
       <svg
         viewBox={`0 0 ${viewport.width} ${viewport.height}`}
         role="img"
-        aria-label={`Sky view for ${satellite.name}, horizon and satellite pass trajectory`}
+        aria-label={
+          northAligned
+            ? `Sky view for ${satellite.name}, horizon and satellite pass trajectory`
+            : 'Phone motion and horizon; align north to locate the satellite'
+        }
       >
         <polygon points={skyGround(view, viewport)} className="finder-sky-ground" />
         <g className="finder-sky-grid">
@@ -135,29 +143,33 @@ export function SatelliteSkyView({
           ))}
         </g>
         <path d={horizon} className="finder-sky-horizon" />
-        {[
-          ['N', 0],
-          ['E', 90],
-          ['S', 180],
-          ['W', 270],
-        ].map(([name, az]) => {
-          const point = project(Number(az), 0);
-          return point.visible ? (
-            <text
-              key={name}
-              x={point.x}
-              y={point.y + 20}
-              className="finder-sky-cardinal"
-              textAnchor="middle"
-            >
-              {name}
-            </text>
-          ) : null;
-        })}
-        <path d={track} className="finder-sky-track" />
-        <path d={elapsed} className="finder-sky-elapsed" />
-        {approach.length > 0 && <path d={incoming} className="finder-sky-approach" />}
-        {pass &&
+        {northAligned &&
+          [
+            ['N', 0],
+            ['E', 90],
+            ['S', 180],
+            ['W', 270],
+          ].map(([name, az]) => {
+            const point = project(Number(az), 0);
+            return point.visible ? (
+              <text
+                key={name}
+                x={point.x}
+                y={point.y + 20}
+                className="finder-sky-cardinal"
+                textAnchor="middle"
+              >
+                {name}
+              </text>
+            ) : null;
+          })}
+        {northAligned && <path d={track} className="finder-sky-track" />}
+        {northAligned && <path d={elapsed} className="finder-sky-elapsed" />}
+        {northAligned && approach.length > 0 && (
+          <path d={incoming} className="finder-sky-approach" />
+        )}
+        {northAligned &&
+          pass &&
           observer &&
           [
             { name: 'Rise', time: pass.start, clipped: pass.startClipped },
@@ -214,7 +226,11 @@ export function SatelliteSkyView({
         )}
       </svg>
       <div className="finder-sky-mode">
-        {camera ? 'Phone tracking' : 'Preview · Drag to explore'}
+        {camera
+          ? northAligned
+            ? 'Phone tracking'
+            : 'Phone tracking · North not aligned'
+          : 'Preview · Drag to explore'}
       </div>
       {guide && guide.distance > 5 && (
         <div className="finder-sky-direction" aria-live="off">
@@ -227,7 +243,8 @@ export function SatelliteSkyView({
         </div>
       )}
       <div className="finder-sky-bearing">
-        {Math.round(azimuth)}° · {Math.round(elevation)}°
+        {northAligned ? `${Math.round(azimuth)}° · ` : 'Tilt '}
+        {Math.round(elevation)}°
       </div>
     </div>
   );
