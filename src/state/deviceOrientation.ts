@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { orientationAngles, type OrientationReading } from '../domain/deviceOrientation';
+import {
+  orientationAngles,
+  orientationCamera,
+  type OrientationReading,
+} from '../domain/deviceOrientation';
 export type OrientationStatus =
   'idle' | 'requesting' | 'active' | 'denied' | 'unavailable' | 'stale' | 'error';
 interface Snapshot {
+  camera?: import('../domain/skyProjection').SkyCamera | null;
   reference?: 'magnetic' | 'true' | null;
   heading: number | null;
   elevation: number | null;
@@ -72,6 +77,12 @@ async function startSensors() {
       received = true;
       publish({
         ...angles,
+        camera: orientationCamera(
+          reading,
+          screen.orientation?.angle ??
+            (window as Window & { orientation?: number }).orientation ??
+            0,
+        ),
         reference: Number.isFinite(reading.webkitCompassHeading)
           ? 'magnetic'
           : reading.absolute

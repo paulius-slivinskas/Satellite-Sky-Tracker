@@ -18,8 +18,8 @@ describe('north-referenced phone orientation', () => {
         .heading,
     ).toBeNull();
   });
-  it('does not assign heading to a vertical screen top', () => {
-    expect(orientationAngles({ ...reading, beta: 90, absolute: true }).heading).toBeNull();
+  it('uses the viewing direction when the screen top is vertical', () => {
+    expect(orientationAngles({ ...reading, beta: 90, absolute: true }).heading).toBeCloseTo(270);
   });
   it('reports rear camera tilt and normalizes negative angles', () => {
     expect(orientationAngles(reading).elevation).toBeCloseTo(-90);

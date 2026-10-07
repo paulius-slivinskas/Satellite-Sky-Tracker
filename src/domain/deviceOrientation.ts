@@ -38,5 +38,56 @@ export function orientationAngles(reading: OrientationReading, screenAngle = 0) 
         heading = normalizeHeading(Math.atan2(east, north) / radians);
     }
   }
+  if (heading === null) {
+    const camera = orientationCamera(reading, screenAngle);
+    if (camera && Math.hypot(camera.forward.x, camera.forward.y) > 0.01)
+      heading = normalizeHeading(Math.atan2(camera.forward.x, camera.forward.y) / radians);
+  }
   return { heading, elevation };
+}
+
+/** W3C intrinsic Z-X-Y rotation; rear-facing -z points at the sky while the screen faces the observer. */
+export function orientationCamera(
+  reading: OrientationReading,
+  screenAngle = 0,
+): import('./skyProjection').SkyCamera | null {
+  if (
+    reading.beta === null ||
+    reading.gamma === null ||
+    !Number.isFinite(reading.beta) ||
+    !Number.isFinite(reading.gamma)
+  )
+    return null;
+  const compass =
+    Number.isFinite(reading.webkitCompassHeading) &&
+    (reading.webkitCompassAccuracy === undefined || reading.webkitCompassAccuracy >= 0);
+  if (!compass && (!reading.absolute || reading.alpha === null || !Number.isFinite(reading.alpha)))
+    return null;
+  const r = Math.PI / 180;
+  const b = reading.beta * r,
+    g = reading.gamma * r,
+    s = screenAngle * r;
+  // Calibrate the intrinsic yaw to the iOS north bearing of the screen top.
+  const topEast = 0;
+  const topNorth = Math.cos(b);
+  const reference = Math.abs(topNorth) > 0.01 ? Math.atan2(topEast, topNorth) : 0;
+  const a = compass ? reference - reading.webkitCompassHeading! * r : reading.alpha! * r;
+  const ca = Math.cos(a),
+    sa = Math.sin(a),
+    cb = Math.cos(b),
+    sb = Math.sin(b),
+    cg = Math.cos(g),
+    sg = Math.sin(g);
+  const x = { x: ca * cg - sa * sb * sg, y: sa * cg + ca * sb * sg, z: -cb * sg };
+  const y = { x: -sa * cb, y: ca * cb, z: sb };
+  const rotate = (first: typeof x, second: typeof x, c: number, d: number) => ({
+    x: first.x * c + second.x * d,
+    y: first.y * c + second.y * d,
+    z: first.z * c + second.z * d,
+  });
+  return {
+    right: rotate(x, y, Math.cos(s), Math.sin(s)),
+    up: rotate(x, y, -Math.sin(s), Math.cos(s)),
+    forward: { x: -ca * sg - sa * sb * cg, y: -sa * sg + ca * sb * cg, z: -cb * cg },
+  };
 }

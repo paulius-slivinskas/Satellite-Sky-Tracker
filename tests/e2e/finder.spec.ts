@@ -21,24 +21,12 @@ test('minimal finder uses live clock and a faint cardinal compass with centered 
     'text-align',
     'center',
   );
-  await expect(dialog.locator('.finder-compass-ring')).toHaveCSS('opacity', '0.25');
-  expect(await dialog.locator('.finder-compass-ring text').allTextContents()).toEqual([
-    'N',
-    'E',
-    'S',
-    'W',
-  ]);
-  await expect(dialog.locator('.finder-compass-ring line')).toHaveCount(0);
-  await expect(dialog.locator('.finder-compass-dial')).toHaveCSS('opacity', '0.3');
-  const compass = (await dialog.locator('.finder-compass').boundingBox())!;
-  const enable = (await dialog
-    .getByRole('button', { name: 'Enable compass', exact: true })
-    .boundingBox())!;
-  expect(Math.abs(compass.x + compass.width / 2 - enable.x - enable.width / 2)).toBeLessThan(2);
-  expect(Math.abs(compass.y + compass.height / 2 - enable.y - enable.height / 2)).toBeLessThan(2);
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-tracking', 'manual');
+  await expect(dialog.locator('.finder-sky-horizon')).toHaveAttribute('d', /M/);
+  await expect(dialog.locator('.finder-sky-track')).toHaveAttribute('d', /M/);
   await expect(dialog.locator('.finder-live-position dd').first()).toHaveText(/\d+\.\d°/);
   await expect(dialog.locator('.finder-live-position dd').last()).toHaveText(/-?\d+\.\d°/);
-  await expect(dialog.getByRole('img')).toHaveAttribute('aria-label', /Current time 12:30:00/);
+  await expect(dialog.getByRole('img')).toHaveAttribute('aria-label', /Sky view for ISS/);
   await expect(dialog.getByRole('img')).toBeInViewport({ ratio: 1 });
   await expect(dialog.getByText('Phone top', { exact: true })).toHaveCount(0);
   await expect(
@@ -50,15 +38,25 @@ test('minimal finder uses live clock and a faint cardinal compass with centered 
     window.dispatchEvent(
       new DeviceOrientationEvent('deviceorientationabsolute', {
         alpha: 270,
-        beta: 0,
+        beta: 90,
         gamma: 0,
         absolute: true,
       }),
     ),
   );
-  await expect(dialog.locator('.finder-compass')).toHaveAttribute('data-active', 'true');
-  await expect(dialog.getByRole('button', { name: 'Enable compass', exact: true })).toHaveCount(0);
-  await expect(dialog.locator('.finder-compass-dial')).toHaveCSS('opacity', '1');
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-tracking', 'live');
+  const horizon = await dialog.locator('.finder-sky-horizon').getAttribute('d');
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new DeviceOrientationEvent('deviceorientationabsolute', {
+        alpha: 270,
+        beta: 120,
+        gamma: 0,
+        absolute: true,
+      }),
+    ),
+  );
+  await expect(dialog.locator('.finder-sky-horizon')).not.toHaveAttribute('d', horizon!);
   const before = await dialog.locator('.finder-live-position dd').allTextContents();
   await page.clock.setFixedTime(new Date('2024-02-29T12:31:00Z'));
   await expect
@@ -90,7 +88,7 @@ test('missing observer and denied compass use compact states without extra instr
   await expect(dialog.getByRole('alert')).toContainText(
     'Motion permission was denied. Allow it in your browser settings.',
   );
-  await expect(dialog.locator('.finder-compass-dial')).toHaveCSS('opacity', '0.3');
+  await expect(dialog.locator('.finder-sky')).toHaveAttribute('data-tracking', 'manual');
   await expect(dialog.getByLabel('Manual compass heading')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);

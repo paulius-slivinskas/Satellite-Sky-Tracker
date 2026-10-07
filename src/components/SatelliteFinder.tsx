@@ -2,12 +2,13 @@ import { Button, Chip, CloseButton } from '@heroui/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { lookAngles } from '../domain/orbits';
-import { passProgress, shortestTurn } from '../domain/finder';
+import { passProgress } from '../domain/finder';
 import { predictPasses } from '../domain/passes';
 import type { Observer, Satellite, SatellitePass } from '../domain/types';
 import { useDeviceOrientation } from '../state/deviceOrientation';
 import { AppAlert } from './AppAlert';
 import './SatelliteFinder.css';
+import { SatelliteSkyView } from './SatelliteSkyView';
 
 export function SatelliteFinder({
   satellite,
@@ -129,9 +130,7 @@ function FinderView({
       minute: '2-digit',
       second: '2-digit',
     });
-  const sensorActive = orientation.status === 'active' && orientation.heading !== null;
-  const heading = sensorActive ? orientation.heading! : 0;
-  const turn = look ? shortestTurn(heading, look.azimuth) : 0;
+  const sensorActive = orientation.status === 'active' && !!orientation.camera;
   const above = look && look.elevation >= 0;
   const tleAgeDays = (now - (satellite.satrec.jdsatepoch - 2440587.5) * 86400000) / 86400000;
   return (
@@ -180,43 +179,18 @@ function FinderView({
         </div>
       )}
       <div className="finder-body">
-        <div className="finder-compass" data-active={sensorActive}>
-          <svg viewBox="0 0 240 240" aria-hidden="true" className="finder-compass-dial">
-            <g className="finder-compass-ring">
-              <circle cx="120" cy="120" r="114" />
-              {['N', 'E', 'S', 'W'].map((label, index) => {
-                const angle = ((index * 90 - heading) * Math.PI) / 180;
-                return (
-                  <text
-                    key={label}
-                    x={120 + 91 * Math.sin(angle)}
-                    y={120 - 91 * Math.cos(angle)}
-                    textAnchor="middle"
-                    dominantBaseline="central"
-                  >
-                    {label}
-                  </text>
-                );
-              })}
-            </g>
-            <g transform={`rotate(${turn} 120 120)`} className="finder-compass-arrow">
-              <path
-                d="M120 65 L138 126 Q138 129 135 128 L120 122 L105 128 Q102 129 102 126 Z"
-                fill="currentColor"
-              />
-              <path
-                d="M120 122 V161"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                opacity="0.5"
-              />
-            </g>
-          </svg>
-          {!sensorActive && (
+        <SatelliteSkyView
+          satellite={satellite}
+          observer={observer}
+          pass={shownPass}
+          now={now}
+          camera={sensorActive ? orientation.camera! : null}
+        />
+        <div className="finder-tracking-controls">
+          {sensorActive ? (
+            <p>Hold the screen towards you and point the phone at the sky.</p>
+          ) : (
             <Button
-              className="finder-enable"
               size="sm"
               variant="secondary"
               aria-label="Enable compass"
@@ -227,7 +201,7 @@ function FinderView({
                 void orientation.requestPermission();
               }}
             >
-              {orientation.status === 'requesting' ? 'Enabling…' : 'Enable'}
+              {orientation.status === 'requesting' ? 'Enabling…' : 'Enable phone tracking'}
             </Button>
           )}
         </div>
@@ -272,35 +246,14 @@ function FinderView({
               </div>
             )}
             {progress.status === 'complete' && <p className="finder-pass-state">Pass complete</p>}
-            <svg
-              viewBox="0 0 400 146"
-              role="img"
-              aria-label={`Pass ${Math.round(progress.progress * 100)} percent complete. Start ${clock(shownPass.start)}. End ${clock(shownPass.end)}. Current time ${clock(now)}.`}
-            >
-              <path d="M40 90 Q200 50 360 90" className="finder-pass-track" />
-              <circle cx={progress.x} cy={progress.y} r="4" className="finder-pass-dot" />
-              <text
-                x={progress.x}
-                y={progress.y - 15}
-                textAnchor={
-                  progress.progress < 0.15 ? 'start' : progress.progress > 0.85 ? 'end' : 'middle'
-                }
-              >
-                {clock(now)}
-              </text>
-              <text x="40" y="112" textAnchor="start">
-                Start
-                <tspan x="40" dy="17">
-                  {clock(shownPass.start)}
-                </tspan>
-              </text>
-              <text x="360" y="112" textAnchor="end">
-                End
-                <tspan x="360" dy="17">
-                  {clock(shownPass.end)}
-                </tspan>
-              </text>
-            </svg>
+            <div className="finder-horizon-times">
+              <span>
+                Rise <strong>{clock(shownPass.losStart)}</strong>
+              </span>
+              <span>
+                Set <strong>{clock(shownPass.losEnd)}</strong>
+              </span>
+            </div>
           </section>
         )}
       </div>
