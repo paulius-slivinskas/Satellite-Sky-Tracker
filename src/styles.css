@@ -1619,7 +1619,9 @@ h3 {
   scroll-snap-align: start;
 }
 .pass-carousel .pass-item {
-  background: color-mix(in srgb, var(--surface) 20%, transparent);
+  --muted: var(--label-foreground);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border-radius: 24px;

@@ -208,6 +208,7 @@ export function PassCarousel({
           return (
             <li key={`${pass.noradId}-${pass.start}`}>
               <Card
+                data-theme="light"
                 className={`pass-item ${active === i ? 'pass-item-hover' : ''} ${inView ? 'pass-item-active' : ''}`}
                 data-norad={pass.noradId}
                 data-pass-start={pass.start}
